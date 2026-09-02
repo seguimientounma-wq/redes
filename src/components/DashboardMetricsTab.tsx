@@ -102,7 +102,7 @@ export default function DashboardMetricsTab({ tasks }: { tasks: any[] }) {
     .slice(0, 5);
 
   // Framer Motion Variants
-  const containerVariants = {
+  const containerVariants: any = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
@@ -110,7 +110,7 @@ export default function DashboardMetricsTab({ tasks }: { tasks: any[] }) {
     }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
   };
@@ -193,7 +193,7 @@ export default function DashboardMetricsTab({ tasks }: { tasks: any[] }) {
                 paddingAngle={5}
                 dataKey="value"
                 stroke="none"
-                onClick={(data) => toggleFilter('estado', data.payload.rawName)}
+                onClick={(data) => toggleFilter('estado', data?.payload?.rawName || '')}
                 className="cursor-pointer"
               >
                 {dataPie.map((entry, index) => (
@@ -201,10 +201,10 @@ export default function DashboardMetricsTab({ tasks }: { tasks: any[] }) {
                 ))}
               </Pie>
               <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              <Legend onClick={(data) => {
+              <Legend onClick={(data: any) => {
                 const found = dataPie.find(d => d.name === data.value);
                 if (found) toggleFilter('estado', found.rawName);
-              }} className="cursor-pointer" />
+              }} />
             </PieChart>
           </ResponsiveContainer>
         </motion.div>
@@ -265,13 +265,13 @@ export default function DashboardMetricsTab({ tasks }: { tasks: any[] }) {
                     outerRadius={60} 
                     dataKey="value" 
                     stroke="none"
-                    onClick={(data) => toggleFilter('prioridad', data.name)}
+                    onClick={(data: any) => toggleFilter('prioridad', data.name || '')}
                     className="cursor-pointer"
                   >
                     {dataPrioridad.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} opacity={activeFilters.prioridad && activeFilters.prioridad !== entry.name ? 0.3 : 1} />)}
                   </Pie>
                   <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Legend onClick={(data) => toggleFilter('prioridad', data.value)} className="cursor-pointer" />
+                  <Legend onClick={(data: any) => toggleFilter('prioridad', data.value || '')} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
