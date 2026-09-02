@@ -34,11 +34,11 @@ export default function LoginCard() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 relative z-0">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 space-y-6 relative z-10">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4 relative z-0">
+      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 space-y-6 relative z-10 border border-gray-100 dark:border-gray-700">
         <div className="flex flex-col items-center">
           {/* Logo UNMa */}
-          <div className="mb-6 relative w-32 h-32">
+          <div className="mb-6 relative w-48 h-48 md:w-56 md:h-56">
             <Image 
               src="/logo.png" 
               alt="Logo UNMa" 
@@ -47,31 +47,31 @@ export default function LoginCard() {
               priority
             />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 text-center">Seguimiento Institucional</h2>
-          <p className="text-sm text-gray-500 mt-2">Acceso para Personal No Docente</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 text-center">Seguimiento Institucional</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Acceso para Personal No Docente</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 mt-8 relative z-50">
           <div className="relative z-50">
-            <label htmlFor="dni" className="block text-sm font-medium text-gray-700">DNI / Legajo</label>
+            <label htmlFor="dni" className="block text-sm font-medium text-gray-700 dark:text-gray-300">DNI / Legajo</label>
             <input
               type="text"
               id="dni"
               name="dni"
               required
-              className="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-blue-600 focus:border-blue-600 outline-none transition-colors relative z-50"
+              className="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-blue-600 focus:border-blue-600 outline-none transition-colors relative z-50 dark:text-white"
               placeholder="Ingresa tu DNI sin puntos"
             />
           </div>
 
           <div className="relative z-50">
-            <label htmlFor="pin" className="block text-sm font-medium text-gray-700">PIN de Seguridad</label>
+            <label htmlFor="pin" className="block text-sm font-medium text-gray-700 dark:text-gray-300">PIN de Seguridad</label>
             <input
               type="password"
               id="pin"
               name="pin"
               required
-              className="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-blue-600 focus:border-blue-600 outline-none transition-colors relative z-50"
+              className="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-blue-600 focus:border-blue-600 outline-none transition-colors relative z-50 dark:text-white"
               placeholder="••••••••"
             />
           </div>

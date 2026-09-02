@@ -14,7 +14,7 @@ export async function getTasks() {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Tareas!A:Q',
+      range: 'Tareas!A:T',
     });
 
     const rows = response.data.values;
@@ -40,16 +40,18 @@ export async function getTasks() {
       estado: row[14] || '',
       fechaCumplimiento: row[15] || '',
       evidencia: row[16] || '',
+      docenteVinculado: row[17] || '',
+      docenteEmail: row[18] || '',
+      docenteTelefono: row[19] || '',
     }));
 
-    // Si es Administrador/Supervisor, ve las de su área o todas (depende regla, ahora filtramos por Area si queremos, o TODAS)
-    // El usuario pidió: admin ve todas, operador ve las suyas.
+    // Si es Administrador/Supervisor, ve todas
     if (user.cargo?.toLowerCase().includes('admin') || user.cargo?.toLowerCase().includes('supervisor') || user.cargo?.toLowerCase().includes('jefe')) {
       return tasks;
     }
 
-    // Operador normal ve solo las asignadas a su DNI
-    return tasks.filter(t => t.dniAsignado === user.dni);
+    // Operador normal ve solo las asignadas a su cargo, sin importar el area
+    return tasks.filter(t => t.cargo === user.cargo);
   } catch (error) {
     console.error('Error fetching tasks', error);
     return [];
@@ -109,11 +111,10 @@ export async function createTaskAction(formData: FormData) {
     if (d.includes('-')) {
       const parts = d.split('-');
       if (parts.length === 3) {
-        // YYYY-MM-DD to DD/MM/YYYY
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
       }
     }
-    return d; // Si ya venía en otro formato, lo deja
+    return d;
   };
 
   const fechaInicioRaw = formData.get('fechaInicio')?.toString() || '';
@@ -125,10 +126,17 @@ export async function createTaskAction(formData: FormData) {
   const fechaCumplimiento = parseDate(fechaCumplimientoRaw);
 
   const prioridad = formData.get('prioridad')?.toString() || 'Media';
+  const docenteVinculado = formData.get('docenteVinculado')?.toString() || '';
+  const docenteEmail = formData.get('docenteEmail')?.toString() || '';
+  const docenteTelefono = formData.get('docenteTelefono')?.toString() || '';
 
   const today = new Date();
-  const fechaHoy = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
-  const timestamp = new Date().toLocaleString('es-AR');
+  const options: Intl.DateTimeFormatOptions = { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' };
+  const formatter = new Intl.DateTimeFormat('es-AR', options);
+  const fechaHoy = formatter.format(today);
+  
+  const timeOptions: Intl.DateTimeFormatOptions = { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+  const timestamp = new Intl.DateTimeFormat('es-AR', timeOptions).format(today);
   
   const id = `T-${Date.now().toString().slice(-6)}`;
 
@@ -153,12 +161,15 @@ export async function createTaskAction(formData: FormData) {
     prioridad || '', 
     estado || '',
     fechaCumplimiento || (estado === 'Cumplida' ? fechaHoy : ''), 
-    evidencia || ''
+    evidencia || '',
+    docenteVinculado || '',
+    docenteEmail || '',
+    docenteTelefono || ''
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Tareas!A:Q',
+    range: 'Tareas!A:T',
     valueInputOption: 'USER_ENTERED',
     requestBody: {
       values: [newRow],
@@ -166,6 +177,42 @@ export async function createTaskAction(formData: FormData) {
   });
 
   revalidatePath('/dashboard');
+}
+
+export async function getDocentes() {
+  const session = await getSession();
+  if (!session) return [];
+
+  const sheets = await getGoogleSheetsClient();
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'personal docente!A:G',
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return [];
+
+    return rows.slice(1).map(row => {
+      // El usuario indicó que el nombre está en la columna A (row[0])
+      const nombreCompleto = row[0] ? String(row[0]).trim() : '';
+      
+      const email = typeof row[4] === 'string' && row[4].includes('@') ? row[4] : (row.find(val => typeof val === 'string' && val.includes('@')) || '');
+      
+      const digitRegex = /\d{8,}/;
+      const telefono = typeof row[5] === 'string' && digitRegex.test(row[5]) ? row[5] : (row.find(val => typeof val === 'string' && !val.includes('@') && digitRegex.test(val)) || '');
+
+      return {
+        id: row[0] || '',
+        nombre: nombreCompleto,
+        email,
+        telefono
+      };
+    }).filter(docente => docente.nombre !== '');
+  } catch (error) {
+    console.error('Error fetching docentes', error);
+    return [];
+  }
 }
 
 export async function getComments(taskId: string) {
