@@ -235,7 +235,7 @@ export default function DashboardMetricsTab({ tasks }: { tasks: any[] }) {
               data={dataBar} 
               margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
               onClick={(state) => {
-                if (state && state.activeLabel) toggleFilter('area', state.activeLabel);
+                if (state && state.activeLabel) toggleFilter('area', String(state.activeLabel));
               }}
               className="cursor-pointer"
             >
