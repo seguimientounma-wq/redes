@@ -38,12 +38,12 @@ export default function LoginCard() {
       <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 space-y-6 relative z-10 border border-gray-100 dark:border-gray-700">
         <div className="flex flex-col items-center">
           {/* Logo UNMa */}
-          <div className="mb-6 relative w-48 h-48 md:w-56 md:h-56">
+          <div className="mb-6 relative w-64 h-64 md:w-80 md:h-80">
             <Image 
               src="/logo.png" 
               alt="Logo UNMa" 
               fill 
-              className="object-contain" 
+              className="object-contain dark:brightness-0 dark:invert transition-all" 
               priority
             />
           </div>

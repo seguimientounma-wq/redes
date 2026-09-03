@@ -25,7 +25,7 @@ export default async function DashboardLayout({
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center gap-3">
-                <Image src="/logo.png" alt="UNMa Logo" width={40} height={40} className="object-contain" />
+                <Image src="/logo.png" alt="UNMa Logo" width={70} height={70} className="object-contain dark:brightness-0 dark:invert transition-all" />
                 <span className="text-xl font-bold text-gray-900 hidden sm:block dark:text-gray-100">Seguimiento UNMa</span>
               </div>
             </div>

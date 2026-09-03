@@ -45,13 +45,16 @@ export async function getTasks() {
       docenteTelefono: row[19] || '',
     }));
 
+    // Filtrar tareas que tengan un ID válido (ignorar filas vaciadas)
+    const validTasks = tasks.filter(t => t.id && t.id.trim() !== '');
+
     // Si es Administrador/Supervisor, ve todas
     if (user.cargo?.toLowerCase().includes('admin') || user.cargo?.toLowerCase().includes('supervisor') || user.cargo?.toLowerCase().includes('jefe')) {
-      return tasks;
+      return validTasks;
     }
 
     // Operador normal ve solo las asignadas a su cargo, sin importar el area
-    return tasks.filter(t => t.cargo === user.cargo);
+    return validTasks.filter(t => t.cargo === user.cargo);
   } catch (error) {
     console.error('Error fetching tasks', error);
     return [];
@@ -88,6 +91,72 @@ export async function updateTaskAction(rowIndex: number, estado: string, evidenc
       values: [[estado, fechaCumplimiento, evidencia]],
     },
   });
+
+  revalidatePath('/dashboard');
+}
+
+export async function deleteTaskAction(rowIndex: number) {
+  const session = await getSession();
+  if (!session) throw new Error('No autorizado');
+
+  const sheets = await getGoogleSheetsClient();
+  const range = `Tareas!A${rowIndex}:T${rowIndex}`;
+  
+  // 1. Obtener los datos de la fila a eliminar
+  const rowDataRes = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range,
+  });
+  const rowData = rowDataRes.data.values;
+  
+  if (rowData && rowData.length > 0) {
+    // 2. Traspasar a la hoja "Tareas eliminadas"
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Tareas eliminadas!A1',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: {
+        values: rowData,
+      },
+    });
+  }
+
+  // 3. Obtener el ID interno (sheetId) de la hoja "Tareas" para poder eliminar la fila
+  const spreadsheet = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+  });
+  
+  const sheet = spreadsheet.data.sheets?.find(
+    (s: any) => s.properties.title === 'Tareas'
+  );
+  
+  if (sheet && sheet.properties?.sheetId !== undefined) {
+    // 4. Eliminar físicamente la fila para que las de abajo suban
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: sheet.properties.sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex - 1, // 0-based
+                endIndex: rowIndex,       // Exclusivo
+              }
+            }
+          }
+        ]
+      }
+    });
+  } else {
+    // Fallback: Si no encontramos el sheetId, vaciamos la fila
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SPREADSHEET_ID,
+      range,
+    });
+  }
 
   revalidatePath('/dashboard');
 }

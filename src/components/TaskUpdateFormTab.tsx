@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createTaskAction, updateTaskAction, getDocentes } from '@/actions/tasks';
+import { createTaskAction, updateTaskAction, getDocentes, deleteTaskAction } from '@/actions/tasks';
 import { toast } from 'sonner';
 import { Loader2, Mail, MessageCircle } from 'lucide-react';
 import CommentsSection from './CommentsSection';
@@ -44,11 +44,47 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
     }
 
     try {
+      const estado = formData.get('estado')?.toString() || 'Pendiente';
+      const evidencia = formData.get('evidencia')?.toString() || '';
+      
+      // Validaciones Preventivas
+      if (estado === 'Vencida') {
+        const fechaVenc = isUpdating && taskDetails ? taskDetails.fechaVencimiento : formData.get('fechaVencimiento')?.toString();
+        if (fechaVenc) {
+          let vDate = null;
+          if (fechaVenc.includes('/')) {
+            const parts = fechaVenc.split('/');
+            vDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+          } else if (fechaVenc.includes('-')) {
+            const parts = fechaVenc.split('-');
+            vDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          }
+          
+          if (vDate) {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            if (vDate >= today) {
+              const confirm = window.confirm('La fecha de vencimiento de esta tarea aún no ha pasado. ¿Estás seguro de que deseas forzar su estado a "Vencida" de manera prematura?');
+              if (!confirm) {
+                setLoading(false);
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      if (estado === 'Cumplida' && !evidencia) {
+        const confirm = window.confirm('Estás marcando la tarea como "Cumplida" sin adjuntar ningún Enlace de Evidencia. ¿Deseas continuar de todos modos?');
+        if (!confirm) {
+          setLoading(false);
+          return;
+        }
+      }
+
       if (isUpdating && taskDetails) {
         // Update logic
-        const estado = formData.get('estado')?.toString() || 'Pendiente';
         const fechaCumplimiento = formData.get('fechaCumplimiento')?.toString() || '';
-        const evidencia = formData.get('evidencia')?.toString() || '';
         await updateTaskAction(taskDetails.rowIndex, estado, evidencia, fechaCumplimiento);
         toast.success('Tarea actualizada correctamente');
       } else {
@@ -62,6 +98,22 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
       console.error("ERROR FORM SUBMIT:", error);
       toast.error('Error al guardar la tarea: ' + (error.message || ''));
     } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!isUpdating || !taskDetails) return;
+    const confirm = window.confirm('🚨 ¿Estás completamente seguro de que deseas ELIMINAR esta tarea? Esta acción la borrará del sistema de forma permanente y no se puede deshacer.');
+    if (!confirm) return;
+
+    setLoading(true);
+    try {
+      await deleteTaskAction(taskDetails.rowIndex);
+      toast.success('Tarea eliminada correctamente');
+      onSuccess();
+    } catch (error: any) {
+      toast.error('Error al eliminar la tarea: ' + (error.message || ''));
       setLoading(false);
     }
   }
@@ -253,8 +305,20 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
           </div>
         </div>
 
-        <div className="pt-4 flex justify-end gap-3">
-          <button
+        <div className="pt-4 flex flex-col sm:flex-row justify-between gap-3 border-t border-gray-200 dark:border-gray-700 mt-6 pt-6">
+          {isUpdating ? (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-xl transition-colors border border-red-200 dark:border-red-800 flex items-center justify-center sm:justify-start"
+            >
+              Eliminar Tarea
+            </button>
+          ) : <div className="hidden sm:block"></div>}
+          
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
             type="button"
             onClick={onSuccess}
             className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -269,6 +333,7 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
             {loading ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : null}
             {isUpdating ? 'Guardar Cambios' : 'Registrar Tarea'}
           </button>
+          </div>
         </div>
       </form>
 
