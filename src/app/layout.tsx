@@ -9,6 +9,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Seguimiento UNMa",
   description: "Sistema de Seguimiento Institucional",
+  icons: {
+    icon: "/logo.jpg",
+  }
 };
 
 export default function RootLayout({
