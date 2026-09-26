@@ -64,6 +64,18 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
     return `https://wa.me/${String(task.docenteTelefono).replace(/\D/g, '')}?text=${text}`;
   };
 
+  const isWeekend = (dStr: string) => {
+    if (!dStr) return false;
+    let parts = dStr.split('/');
+    if (parts.length !== 3) parts = dStr.split('-');
+    if (parts.length === 3) {
+      // Assuming DD/MM/YYYY or YYYY-MM-DD
+      const d = dStr.includes('/') ? new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])) : new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return d.getDay() === 0 || d.getDay() === 6;
+    }
+    return false;
+  };
+
   const baseFilteredTasks = tasks;
 
   const filteredTasks = baseFilteredTasks.filter(task => {
@@ -101,7 +113,7 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
     
     autoTable(doc, {
       startY: 20,
-      head: [['ID', 'Asignado a', 'Docente', 'Área', 'Tipo', 'Estado', 'Vencimiento']],
+      head: [['ID', 'Asignado a', 'Personas vinculadas', 'Área', 'Tipo', 'Estado', 'Vencimiento']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [37, 99, 235] }
@@ -115,7 +127,7 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
       ID: t.id,
       DNI: t.dniAsignado,
       Asignado: `${t.nombreAsignado} ${t.apellidoAsignado}`,
-      Docente_Vinculado: t.docenteVinculado,
+      Personas_Vinculadas: t.docenteVinculado,
       Area: t.area,
       Cargo: t.cargo,
       Tipo: t.tipo,
@@ -161,7 +173,7 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
           icsContent += `DTSTART;VALUE=DATE:${dateStr}\n`;
           icsContent += `DTEND;VALUE=DATE:${dateStr}\n`;
           icsContent += `SUMMARY:Vence: ${task.tipo}\n`;
-          icsContent += `DESCRIPTION:${task.descripcion} (Docente: ${task.docenteVinculado})\n`;
+          icsContent += `DESCRIPTION:${task.descripcion} (Personas vinculadas: ${task.docenteVinculado})\n`;
           icsContent += "END:VEVENT\n";
         }
       }
@@ -185,9 +197,16 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(task)}`}>
           {getStatusLabel(task)}
         </span>
-        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-          Prioridad {task.prioridad}
-        </span>
+        <div className="flex gap-2">
+          {(isWeekend(task.fechaInicio) || isWeekend(task.fechaCumplimiento)) && (
+            <span className="text-xs font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/40 dark:text-purple-300 px-2 py-1 rounded shadow-sm">
+              🕒 Extra
+            </span>
+          )}
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+            Prioridad {task.prioridad}
+          </span>
+        </div>
       </div>
       
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 leading-tight mb-2 line-clamp-2">
@@ -205,9 +224,9 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
             target="_blank" 
             rel="noopener noreferrer"
             className="text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-2 cursor-pointer"
-            title="Contactar Docente"
+            title="Contactar Personal"
           >
-            Docente: {task.docenteVinculado}
+            Personas vinculadas: {task.docenteVinculado}
           </a>
           <div className="flex items-center gap-2 mt-2">
             {task.docenteEmail && (
@@ -330,7 +349,7 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
           
           <div className="min-w-[800px]">
             <div className="flex border-b border-gray-200 dark:border-gray-700 pb-2 mb-2 text-sm text-gray-500 dark:text-gray-400 font-medium">
-              <div className="w-1/4 pr-4">Tarea y Docente</div>
+              <div className="w-1/4 pr-4">Tarea y Personas</div>
               <div className="w-3/4 flex justify-between relative">
                 {Array.from({length: 4}).map((_, i) => {
                   const d = new Date();
@@ -344,8 +363,18 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
               </div>
             </div>
             
-            <div className="space-y-3">
-              {baseFilteredTasks.filter(t => t.fechaVencimiento && getStatusLabel(t) !== 'Cumplida').slice(0, 15).map(task => {
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+              {baseFilteredTasks
+                .filter(t => t.fechaVencimiento && getStatusLabel(t) !== 'Cumplida' && getStatusLabel(t) !== 'Cancelada')
+                .sort((a, b) => {
+                  const pa = a.fechaVencimiento.split(/[\/\-]/);
+                  const pb = b.fechaVencimiento.split(/[\/\-]/);
+                  let da = 0, db = 0;
+                  if (pa.length === 3) da = new Date(Number(pa[2]), Number(pa[1])-1, Number(pa[0])).getTime();
+                  if (pb.length === 3) db = new Date(Number(pb[2]), Number(pb[1])-1, Number(pb[0])).getTime();
+                  return da - db;
+                })
+                .map(task => {
                 const today = new Date();
                 today.setHours(0,0,0,0);
                 
@@ -369,27 +398,41 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
                   }
                 }
                 
-                const colorClass = diffDays < 0 ? 'bg-red-500' : diffDays < 5 ? 'bg-yellow-500' : 'bg-blue-500';
+                const estadoLabel = getStatusLabel(task);
+                const colorClass = estadoLabel === 'Vencida' ? 'bg-red-500' : estadoLabel === 'En proceso' ? 'bg-yellow-500' : 'bg-blue-500';
 
                 return (
-                  <div key={task.id} className="flex items-center text-sm">
-                    <div className="w-1/4 pr-4 truncate font-medium text-gray-700 dark:text-gray-200" title={task.tipo}>
-                      {task.tipo} <span className="text-gray-400 font-normal text-xs block truncate">{task.docenteVinculado}</span>
+                  <div 
+                    key={task.id} 
+                    onClick={() => onUpdateClick(task.id)}
+                    className="flex items-center text-sm p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-800"
+                    title="Haz clic para actualizar esta tarea"
+                  >
+                    <div className="w-1/4 pr-4 truncate font-medium text-gray-700 dark:text-gray-200 flex flex-col">
+                      <div className="flex items-center gap-1">
+                        <span className="truncate">{task.tipo}</span>
+                        {(isWeekend(task.fechaInicio) || isWeekend(task.fechaCumplimiento)) && (
+                          <span className="text-[10px] px-1 py-0.5 rounded font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 shadow-sm shrink-0" title="Trabajado en fin de semana">
+                            🕒
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-gray-400 font-normal text-xs block truncate">{task.docenteVinculado}</span>
                     </div>
                     <div className="w-3/4 bg-gray-100 dark:bg-gray-700/50 rounded-full h-6 relative flex items-center">
                       <div 
                         className={`h-6 rounded-full ${colorClass} opacity-90 flex items-center px-2 text-xs text-white shadow-sm whitespace-nowrap overflow-hidden transition-all hover:opacity-100`}
                         style={{ width: `${width}%`, marginLeft: `${startPos}%` }}
                       >
-                        {diffDays < 0 ? 'Vencida' : `${diffDays} días`}
+                        {diffDays < 0 ? (estadoLabel === 'Vencida' ? 'Vencida' : `Atrasada (${Math.abs(diffDays)}d)`) : `${diffDays} días`}
                       </div>
                     </div>
                   </div>
                 );
               })}
-              {baseFilteredTasks.length > 15 && (
-                <div className="text-center text-sm text-gray-500 dark:text-gray-400 pt-4">
-                  Mostrando 15 tareas urgentes de {baseFilteredTasks.length}.
+              {baseFilteredTasks.filter(t => t.fechaVencimiento && getStatusLabel(t) !== 'Cumplida' && getStatusLabel(t) !== 'Cancelada').length === 0 && (
+                <div className="text-center text-sm text-gray-500 dark:text-gray-400 pt-8 pb-4">
+                  No hay tareas pendientes con fecha de vencimiento.
                 </div>
               )}
             </div>
@@ -552,7 +595,7 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
                   <th className="px-4 py-3">ID</th>
                   <th className="px-4 py-3">Tipo / Referencia</th>
                   <th className="px-4 py-3">Responsable</th>
-                  <th className="px-4 py-3">Docente Vinculado</th>
+                  <th className="px-4 py-3">Personas Vinculadas</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Vencimiento</th>
                   <th className="px-4 py-3 text-right">Acción</th>
@@ -563,7 +606,14 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
                 <tr key={task.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{task.id}</td>
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-gray-900 dark:text-gray-100">{task.tipo}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-gray-900 dark:text-gray-100">{task.tipo}</div>
+                      {(isWeekend(task.fechaInicio) || isWeekend(task.fechaCumplimiento)) && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 shadow-sm whitespace-nowrap" title="Fin de semana">
+                          🕒 Extra
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]" title={task.descripcion}>
                       {task.descripcion}
                     </div>
@@ -577,7 +627,7 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                          title="Contactar Docente"
+                          title="Contactar Personal"
                         >
                           {task.docenteVinculado}
                         </a>

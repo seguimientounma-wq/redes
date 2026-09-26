@@ -28,7 +28,7 @@ export default function RootLayout({
           <footer className="w-full bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
               <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                Dirección de Planificación, Seguimiento y Evaluación de Educación a Distancia
+                Dirección General de Educación a Distancia UNMa - SIED
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                 ¿Dudas, consultas o cambios? Contáctanos en:{' '}

@@ -24,8 +24,31 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
     isListening, toggleListening,
     statusFilter, setStatusFilter,
     cargoFilter, setCargoFilter,
-    filteredTasks
+    filteredTasks: searchFilteredTasks
   } = useSmartFilter(initialTasks);
+
+  // Filtros Avanzados (desde el Dashboard)
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+
+  const toggleFilter = (key: string, value: string) => {
+    setActiveFilters(prev => {
+      const newFilters = { ...prev };
+      if (newFilters[key] === value) delete newFilters[key];
+      else newFilters[key] = value;
+      return newFilters;
+    });
+  };
+
+  const clearFilters = () => setActiveFilters({});
+
+  // Filtrado final (Search + Dashboard Filters)
+  const filteredTasks = searchFilteredTasks.filter(t => {
+    if (activeFilters.estado && t.estado !== activeFilters.estado && !(activeFilters.estado === 'Pendiente' && !t.estado)) return false;
+    if (activeFilters.prioridad && (t.prioridad || 'Media') !== activeFilters.prioridad) return false;
+    if (activeFilters.area && (t.area || 'Sin Área') !== activeFilters.area) return false;
+    if (activeFilters.keyword && !t.descripcion?.toLowerCase().includes(activeFilters.keyword.toLowerCase())) return false;
+    return true;
+  });
 
   useEffect(() => {
     if (isTvMode) setTheme('dark');
@@ -209,7 +232,14 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
           />
         )}
         {activeTab === 'metrics' && (
-          <DashboardMetricsTab tasks={filteredTasks} />
+          <DashboardMetricsTab 
+            tasks={searchFilteredTasks} 
+            filteredTasks={filteredTasks}
+            activeFilters={activeFilters}
+            toggleFilter={toggleFilter}
+            clearFilters={clearFilters}
+            onUpdateClick={handleUpdateClick} 
+          />
         )}
       </div>
     </div>

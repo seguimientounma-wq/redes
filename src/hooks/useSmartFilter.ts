@@ -2,20 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import Fuse from 'fuse.js';
 
 const getStatusLabel = (task: any) => {
-  if (task.estado === 'Vencida') return 'Vencida';
-  if (task.estado === 'Cumplida') return 'Cumplida';
-  if (task.estado === 'Cancelada') return 'Cancelada';
-  if (task.estado === 'En proceso') return 'En proceso';
-  
-  if (task.fechaVencimiento && task.estado !== 'Cumplida' && task.estado !== 'Cancelada') {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const parts = task.fechaVencimiento.split('/');
-    if (parts.length === 3) {
-      const [d, m, y] = parts;
-      const limitDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-      if (limitDate < today) return 'Vencida';
-    }
+  if (task.estado) {
+    if (task.estado.toLowerCase().includes('vencida')) return 'Vencida';
+    if (task.estado.toLowerCase().includes('cumplida')) return 'Cumplida';
+    if (task.estado.toLowerCase().includes('cancelada')) return 'Cancelada';
+    if (task.estado.toLowerCase().includes('proceso')) return 'En proceso';
+    return task.estado; // Retorna el estado exacto del sheet si existe
   }
   return 'Pendiente';
 };

@@ -61,7 +61,7 @@ export async function getTasks() {
   }
 }
 
-export async function updateTaskAction(rowIndex: number, estado: string, evidencia: string, fechaCumplimientoRaw: string) {
+export async function updateTaskAction(taskId: string, estado: string, evidencia: string, fechaCumplimientoRaw: string) {
   const session = await getSession();
   if (!session) throw new Error('No autorizado');
 
@@ -80,6 +80,21 @@ export async function updateTaskAction(rowIndex: number, estado: string, evidenc
 
   const fechaCumplimiento = parseDate(fechaCumplimientoRaw);
 
+  // Fetch all tasks to find the exact rowIndex dynamically
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Tareas!A:T',
+  });
+  
+  const rows = response.data.values;
+  if (!rows) throw new Error('No se encontraron datos en la hoja.');
+  
+  // Buscar la fila cuyo ID (columna B, índice 1) coincida
+  const dataRowIndex = rows.findIndex((row, i) => i > 0 && row[1] === taskId);
+  if (dataRowIndex === -1) throw new Error('Tarea no encontrada o ya fue eliminada');
+  
+  const rowIndex = dataRowIndex + 1; // 1-based index in Google Sheets
+
   // En la nueva estructura: O es Estado, P es Fecha_Cumplimiento, Q es Evidencia
   const range = `Tareas!O${rowIndex}:Q${rowIndex}`;
   
@@ -95,11 +110,25 @@ export async function updateTaskAction(rowIndex: number, estado: string, evidenc
   revalidatePath('/dashboard');
 }
 
-export async function deleteTaskAction(rowIndex: number) {
+export async function deleteTaskAction(taskId: string) {
   const session = await getSession();
   if (!session) throw new Error('No autorizado');
 
   const sheets = await getGoogleSheetsClient();
+  
+  // Fetch all tasks to find the exact rowIndex dynamically
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Tareas!A:T',
+  });
+  
+  const rows = response.data.values;
+  if (!rows) throw new Error('No se encontraron datos en la hoja.');
+  
+  const dataRowIndex = rows.findIndex((row, i) => i > 0 && row[1] === taskId);
+  if (dataRowIndex === -1) throw new Error('Tarea no encontrada o ya fue eliminada');
+  
+  const rowIndex = dataRowIndex + 1;
   const range = `Tareas!A${rowIndex}:T${rowIndex}`;
   
   // 1. Obtener los datos de la fila a eliminar
@@ -266,10 +295,10 @@ export async function getDocentes() {
       // El usuario indicó que el nombre está en la columna A (row[0])
       const nombreCompleto = row[0] ? String(row[0]).trim() : '';
       
-      const email = typeof row[4] === 'string' && row[4].includes('@') ? row[4] : (row.find(val => typeof val === 'string' && val.includes('@')) || '');
+      const email = typeof row[3] === 'string' && row[3].includes('@') ? row[3] : (row.find(val => typeof val === 'string' && val.includes('@')) || '');
       
       const digitRegex = /\d{8,}/;
-      const telefono = typeof row[5] === 'string' && digitRegex.test(row[5]) ? row[5] : (row.find(val => typeof val === 'string' && !val.includes('@') && digitRegex.test(val)) || '');
+      const telefono = typeof row[4] === 'string' && digitRegex.test(row[4]) ? row[4] : (row.find(val => typeof val === 'string' && !val.includes('@') && digitRegex.test(val)) || '');
 
       return {
         id: row[0] || '',
@@ -277,7 +306,7 @@ export async function getDocentes() {
         email,
         telefono
       };
-    }).filter(docente => docente.nombre !== '');
+    }).filter(docente => docente.nombre !== '').sort((a, b) => a.nombre.localeCompare(b.nombre));
   } catch (error) {
     console.error('Error fetching docentes', error);
     return [];

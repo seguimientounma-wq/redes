@@ -10,13 +10,13 @@ type Message = {
   text: string | React.ReactNode;
 };
 
-export default function VirtualAssistant({ tasks }: { tasks: any[] }) {
+export default function VirtualAssistant({ tasks, userName }: { tasks: any[], userName?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'bot',
-      text: '¡Hola! Soy CIRA Anti-olvido 🤖. ¿En qué te ayudo hoy?'
+      text: `¡Hola ${userName ? userName.split(' ')[0] : ''}! Soy CIRA Anti-olvido 🤖. ¿En qué te ayudo hoy?`
     }
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
