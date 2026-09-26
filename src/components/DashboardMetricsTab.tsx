@@ -445,23 +445,23 @@ export default function DashboardMetricsTab({
                 />
                 <Bar 
                   dataKey="Cumplidas" stackId="a" fill="#22c55e" maxBarSize={40}
-                  onClick={(data) => { if (data && data.tareas) setSelectedDayTasks(data.tareas); }}
+                  onClick={(data: any) => { const tareas = data?.payload?.tareas || data?.tareas; if (tareas) setSelectedDayTasks(tareas); }}
                 />
                 <Bar 
                   dataKey="En Proceso" stackId="a" fill="#eab308" maxBarSize={40}
-                  onClick={(data) => { if (data && data.tareas) setSelectedDayTasks(data.tareas); }}
+                  onClick={(data: any) => { const tareas = data?.payload?.tareas || data?.tareas; if (tareas) setSelectedDayTasks(tareas); }}
                 />
                 <Bar 
                   dataKey="Pendientes" stackId="a" fill="#3b82f6" maxBarSize={40}
-                  onClick={(data) => { if (data && data.tareas) setSelectedDayTasks(data.tareas); }}
+                  onClick={(data: any) => { const tareas = data?.payload?.tareas || data?.tareas; if (tareas) setSelectedDayTasks(tareas); }}
                 />
                 <Bar 
                   dataKey="Vencidas" stackId="a" fill="#ef4444" maxBarSize={40}
-                  onClick={(data) => { if (data && data.tareas) setSelectedDayTasks(data.tareas); }}
+                  onClick={(data: any) => { const tareas = data?.payload?.tareas || data?.tareas; if (tareas) setSelectedDayTasks(tareas); }}
                 />
                 <Bar 
                   dataKey="Canceladas" stackId="a" fill="#9ca3af" maxBarSize={40}
-                  onClick={(data) => { if (data && data.tareas) setSelectedDayTasks(data.tareas); }}
+                  onClick={(data: any) => { const tareas = data?.payload?.tareas || data?.tareas; if (tareas) setSelectedDayTasks(tareas); }}
                 />
               </BarChart>
             </ResponsiveContainer>
