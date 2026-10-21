@@ -1,30 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Fuse from 'fuse.js';
 
-const getDiffDays = (fechaVencimiento: string) => {
-  if (!fechaVencimiento) return null;
-  const parts = fechaVencimiento.split('/');
-  if (parts.length !== 3) return null;
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const limitDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-  const diffTime = limitDate.getTime() - today.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-};
-
-const getStatusLabel = (task: any) => {
-  if (task.estado) {
-    if (task.estado.toLowerCase().includes('vencida')) return 'Vencida';
-    if (task.estado.toLowerCase().includes('cumplida')) return 'Cumplida';
-    if (task.estado.toLowerCase().includes('cancelada')) return 'Cancelada';
-    if (task.estado.toLowerCase().includes('proceso')) return 'En proceso';
-  }
-  
-  const diff = getDiffDays(task.fechaVencimiento);
-  if (diff !== null && diff < 0) return 'Vencida';
-  
-  return task.estado || 'Pendiente';
-};
+import { getStatusLabel, getDiffDays } from '@/lib/taskStatus';
 
 export function useSmartFilter(initialTasks: any[]) {
   const [searchTerm, setSearchTerm] = useState('');

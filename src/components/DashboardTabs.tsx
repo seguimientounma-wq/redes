@@ -2,18 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
-import { Tv, X, Search, Mic, Sparkles, Calendar, CalendarDays, FileText } from 'lucide-react';
+import { Tv, X, Search, Mic, Sparkles, Calendar, CalendarDays, FileText, Network } from 'lucide-react';
 import TaskListTab from './TaskListTab';
 import TaskUpdateFormTab from './TaskUpdateFormTab';
 import DashboardMetricsTab from './DashboardMetricsTab';
-import ZenMode from './ZenMode';
+import EveaMindMapTab from './EveaMindMapTab';
 import ExecutiveReportModal from './ExecutiveReportModal';
 import { useSmartFilter } from '../hooks/useSmartFilter';
+import { getDiffDays, getStatusLabel } from '@/lib/taskStatus';
+
+const formatYMD = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function DashboardTabs({ initialTasks }: { initialTasks: any[] }) {
-  const [activeTab, setActiveTab] = useState<'list' | 'update' | 'metrics'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'update' | 'metrics' | 'evea'>('list');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [isZenMode, setIsZenMode] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   
   const [isTvMode, setIsTvMode] = useState(false);
@@ -58,12 +65,6 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
       return;
     }
     const now = new Date();
-    const formatYMD = (d: Date) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
     
     if (preset === 'created_today' || preset === 'today') {
       const todayStr = formatYMD(now);
@@ -119,30 +120,6 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
         return copy;
       });
     }
-  };
-
-  // Helper dinámico de estado
-  const getDiffDays = (fechaVencimiento: string) => {
-    if (!fechaVencimiento) return null;
-    const parts = fechaVencimiento.split('/');
-    if (parts.length !== 3) return null;
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const limitDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-    const diffTime = limitDate.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-  const getStatusLabel = (task: any) => {
-    if (task.estado === 'Vencida') return 'Vencida';
-    if (task.estado === 'Cumplida') return 'Cumplida';
-    if (task.estado === 'Cancelada') return 'Cancelada';
-    if (task.estado === 'En proceso') return 'En proceso';
-    const diff = getDiffDays(task.fechaVencimiento);
-    if (diff !== null) {
-      if (diff < 0) return 'Vencida';
-      if (diff >= 0 && diff <= 2) return 'Próxima a Vencer';
-    }
-    return task.estado || 'Pendiente';
   };
 
   // Filtrado final (Search + Dashboard Filters)
@@ -269,6 +246,11 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
     const handleCiraFilter = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail) {
+        if (customEvent.detail.type === 'tab') {
+          setActiveTab(customEvent.detail.value);
+          return;
+        }
+
         setActiveTab('list');
         
         if (typeof customEvent.detail === 'string') {
@@ -276,7 +258,41 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
           setSearchTerm(customEvent.detail);
         } else if (customEvent.detail.type === 'status') {
           // CIRA pide filtrar por estado. Usamos el dropdown oficial para que la UI coincida.
+          setSearchTerm('');
           setStatusFilter(customEvent.detail.value);
+        } else if (customEvent.detail.type === 'preset') {
+          // CIRA pide un preset de fechas (ej. due_today, week, etc.)
+          setSearchTerm('');
+          setDatePreset(customEvent.detail.value);
+        } else if (customEvent.detail.type === 'due_days') {
+          // Tareas que vencen dentro de N días (ej. 1 para mañana, 7 para la semana)
+          setSearchTerm('');
+          setStatusFilter('Todas');
+          const days = parseInt(customEvent.detail.value) || 0;
+          const currentDate = new Date();
+          const targetStart = new Date(currentDate);
+          if (days === 1) {
+            // Mañana
+            targetStart.setDate(targetStart.getDate() + 1);
+            const targetStr = formatYMD(targetStart);
+            setActiveFilters(prev => ({
+              ...prev,
+              dateStart: targetStr,
+              dateEnd: targetStr,
+              dateField: 'vencimiento'
+            }));
+          } else {
+            // Próximos N días a partir de mañana (urgentes de la semana)
+            targetStart.setDate(targetStart.getDate() + 1);
+            const targetEnd = new Date(currentDate);
+            targetEnd.setDate(targetEnd.getDate() + days);
+            setActiveFilters(prev => ({
+              ...prev,
+              dateStart: formatYMD(targetStart),
+              dateEnd: formatYMD(targetEnd),
+              dateField: 'vencimiento'
+            }));
+          }
         } else if (customEvent.detail.type === 'persona') {
           // CIRA pide filtrar por persona. Mantenemos el resto de filtros.
           setActiveFilters(prev => {
@@ -506,17 +522,17 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
         </div>
       )}
 
-      {/* Tabs Header y Botones de Acción (Responsivo) */}
+      {/* Tabs Header a lo ancho completo */}
       {!isTvMode && (
-        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 w-full mb-4">
-          {/* Pestañas Principales */}
-          <div className="flex space-x-1.5 sm:space-x-2 bg-gray-200/60 dark:bg-gray-800/60 p-1.5 rounded-2xl w-full xl:max-w-2xl">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 w-full mb-4">
+          {/* Pestañas Principales ocupando el máximo espacio */}
+          <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-2 bg-gray-200/60 dark:bg-gray-800/60 p-1.5 rounded-2xl w-full">
             <button
               onClick={() => setActiveTab('list')}
-              className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm md:text-base font-bold rounded-xl transition-all text-center ${
+              className={`w-full py-3 px-3 text-xs sm:text-sm md:text-base font-bold rounded-xl transition-all text-center truncate ${
                 activeTab === 'list'
-                  ? 'bg-white dark:bg-gray-900 text-blue-700 dark:text-blue-400 shadow-sm scale-[1.02]'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800'
+                  ? 'bg-white dark:bg-gray-900 text-blue-700 dark:text-blue-400 shadow-md scale-[1.01]'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200/80 dark:hover:bg-gray-700/60'
               }`}
             >
               Mis Tareas & Alertas
@@ -526,59 +542,49 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
                 setSelectedTaskId(null);
                 setActiveTab('update');
               }}
-              className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm md:text-base font-bold rounded-xl transition-all text-center ${
+              className={`w-full py-3 px-3 text-xs sm:text-sm md:text-base font-bold rounded-xl transition-all text-center truncate ${
                 activeTab === 'update'
-                  ? 'bg-white dark:bg-gray-900 text-blue-700 dark:text-blue-400 shadow-sm scale-[1.02]'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800'
+                  ? 'bg-white dark:bg-gray-900 text-blue-700 dark:text-blue-400 shadow-md scale-[1.01]'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200/80 dark:hover:bg-gray-700/60'
               }`}
             >
               Carga Diaria
             </button>
             <button
               onClick={() => setActiveTab('metrics')}
-              className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm md:text-base font-bold rounded-xl transition-all text-center ${
+              className={`w-full py-3 px-3 text-xs sm:text-sm md:text-base font-bold rounded-xl transition-all text-center truncate ${
                 activeTab === 'metrics'
-                  ? 'bg-white dark:bg-gray-900 text-blue-700 dark:text-blue-400 shadow-sm scale-[1.02]'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800'
+                  ? 'bg-white dark:bg-gray-900 text-blue-700 dark:text-blue-400 shadow-md scale-[1.01]'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200/80 dark:hover:bg-gray-700/60'
               }`}
             >
               Métricas & Dashboard
             </button>
+            <button
+              onClick={() => setActiveTab('evea')}
+              className={`w-full py-3 px-3 text-xs sm:text-sm md:text-base font-bold rounded-xl transition-all text-center flex items-center justify-center gap-2 truncate ${
+                activeTab === 'evea'
+                  ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md scale-[1.01]'
+                  : 'text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-white bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+              }`}
+            >
+              <Network className="w-4 h-4 shrink-0" />
+              <span>Cultura EVEA</span>
+            </button>
           </div>
 
-          {/* Modo TV y Modo Zen */}
-          <div className="flex items-center gap-2 self-end xl:self-auto">
+          {/* Modo TV */}
+          <div className="flex items-center gap-2 shrink-0">
             <button 
               onClick={() => setIsTvMode(true)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 rounded-xl hover:bg-gray-800 dark:hover:bg-white active:scale-95 transition-all text-xs sm:text-sm font-semibold shadow-sm whitespace-nowrap"
+              className="w-full md:w-auto flex items-center justify-center gap-1.5 px-4 py-3 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 rounded-xl hover:bg-gray-800 dark:hover:bg-white active:scale-95 transition-all text-xs sm:text-sm font-semibold shadow-sm whitespace-nowrap"
               title="Modo Oficina (TV)"
             >
               <Tv className="w-4 h-4 shrink-0" />
               <span>Modo TV</span>
             </button>
-
-            <button 
-              onClick={() => setIsZenMode(true)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-700 hover:to-green-600 text-white rounded-xl hover:scale-105 active:scale-95 transition-all text-xs sm:text-sm font-semibold shadow-md whitespace-nowrap"
-              title="Entrar en Modo Concentración"
-            >
-              <span className="shrink-0 text-sm">🧘</span>
-              <span>Modo Zen</span>
-            </button>
           </div>
         </div>
-      )}
-
-      {isZenMode && (
-        <ZenMode 
-          tasks={searchFilteredTasks} 
-          onClose={() => setIsZenMode(false)} 
-          onComplete={(id) => { 
-            setSelectedTaskId(id); 
-            setActiveTab('update'); 
-            setIsZenMode(false); 
-          }} 
-        />
       )}
 
       {/* Tabs Content */}
@@ -593,7 +599,7 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
         )}
         {activeTab === 'update' && (
           <TaskUpdateFormTab 
-            tasks={filteredTasks} 
+            tasks={initialTasks} 
             selectedTaskId={selectedTaskId} 
             onSuccess={() => setActiveTab('list')}
           />
@@ -608,6 +614,9 @@ export default function DashboardTabs({ initialTasks }: { initialTasks: any[] })
             onUpdateClick={handleUpdateClick} 
             theme={resolvedTheme || theme}
           />
+        )}
+        {activeTab === 'evea' && (
+          <EveaMindMapTab />
         )}
       </div>
 

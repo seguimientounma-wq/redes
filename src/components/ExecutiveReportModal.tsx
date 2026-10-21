@@ -6,6 +6,7 @@ import {
   ExternalLink, Download, Sparkles, Filter, Calendar, BarChart3, AlertTriangle, ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getStatusLabel, getDiffDays } from '@/lib/taskStatus';
 
 interface ExecutiveReportModalProps {
   isOpen: boolean;
@@ -31,33 +32,6 @@ export default function ExecutiveReportModal({
   const [includeAssignees, setIncludeAssignees] = useState(true);
   
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  // Helper dinámico de estado
-  const getDiffDays = (fechaVencimiento: string) => {
-    if (!fechaVencimiento) return null;
-    const parts = fechaVencimiento.split(/[\/\-]/);
-    if (parts.length !== 3) return null;
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    // Asumiendo formato DD/MM/YYYY
-    const [d, m, y] = parts;
-    const limitDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-    const diffTime = limitDate.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const getStatusLabel = (task: any) => {
-    if (task.estado === 'Vencida') return 'Vencida';
-    if (task.estado === 'Cumplida') return 'Cumplida';
-    if (task.estado === 'Cancelada') return 'Cancelada';
-    if (task.estado === 'En proceso') return 'En proceso';
-    const diff = getDiffDays(task.fechaVencimiento);
-    if (diff !== null) {
-      if (diff < 0) return 'Vencida';
-      if (diff >= 0 && diff <= 2) return 'Próxima a Vencer';
-    }
-    return task.estado || 'Pendiente';
-  };
 
   // Cálculo de KPIs
   const total = tasks.length;

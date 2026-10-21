@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Bot, User, Send, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
+import { getStatusLabel, getDiffDays } from '@/lib/taskStatus';
 
 type Message = {
   id: string;
@@ -26,30 +27,6 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
   }, [messages, isOpen]);
 
   // Funciones de ayuda para calcular fechas
-  const getDiffDays = (fechaVencimiento: string) => {
-    if (!fechaVencimiento) return null;
-    const parts = fechaVencimiento.split('/');
-    if (parts.length !== 3) return null;
-    
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const [d, m, y] = parts;
-    const limitDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-    const diffTime = limitDate.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const getStatusLabel = (task: any) => {
-    if (task.estado === 'Vencida') return 'Vencida';
-    if (task.estado === 'Cumplida') return 'Cumplida';
-    if (task.estado === 'Cancelada') return 'Cancelada';
-    if (task.estado === 'En proceso') return 'En proceso';
-    
-    const diff = getDiffDays(task.fechaVencimiento);
-    if (diff !== null && diff < 0) return 'Vencida';
-    return task.estado || 'Pendiente';
-  };
-
   const activeTasks = tasks.filter(t => getStatusLabel(t) !== 'Cumplida' && getStatusLabel(t) !== 'Cancelada');
 
   const handleAsk = (question: string) => {
@@ -64,12 +41,13 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
       const createFilterButton = (
         filterTerm: string, 
         label: string, 
-        type: 'search' | 'status' | 'responsable' | 'vinculado' | 'persona' = 'search'
+        type: 'search' | 'status' | 'responsable' | 'vinculado' | 'persona' | 'preset' | 'due_days' = 'search',
+        extra?: any
       ) => (
         <button 
           onClick={() => {
             window.dispatchEvent(new CustomEvent('cira-apply-filter', { 
-              detail: { type, value: filterTerm } 
+              detail: { type, value: filterTerm, ...extra } 
             }));
             setIsOpen(false);
           }}
@@ -95,7 +73,7 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
                   </li>
                 ))}
               </ul>
-              {createFilterButton("hoy", "Ver tareas de HOY")}
+              {createFilterButton("due_today", "Ver tareas de HOY", "preset")}
             </div>
           );
         }
@@ -119,7 +97,7 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
                   </li>
                 ))}
               </ul>
-              {createFilterButton("esta semana", "Ver urgentes de la SEMANA")}
+              {createFilterButton("7", "Ver urgentes de la SEMANA (próximos 7 días)", "due_days")}
             </div>
           );
         }
@@ -139,7 +117,7 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
                   </li>
                 ))}
               </ul>
-              {createFilterButton("mañana", "Ver tareas de MAÑANA")}
+              {createFilterButton("1", "Ver tareas de MAÑANA", "due_days")}
             </div>
           );
         }
@@ -251,6 +229,25 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
         );
       }
 
+      else if (question === "Ver Cultura Institucional y Mapa Mental EVEA") {
+        response = (
+          <div className="space-y-2">
+            <p className="text-sm">
+              🧠 El <strong>Mapa Mental EVEA</strong> resume la Cultura Institucional de Educación a Distancia (UNMa): los 5 bloques por clase, la articulación Aula + Sala Docente, el Protocolo de IA y un espacio para agregar directivas específicas.
+            </p>
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('cira-apply-filter', { detail: { type: 'tab', value: 'evea' } }));
+                setIsOpen(false);
+              }}
+              className="mt-2 text-xs bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-3 rounded-xl transition-all font-bold flex items-center justify-center gap-1.5 w-full shadow-md"
+            >
+              Abrir Mapa Mental EVEA
+            </button>
+          </div>
+        );
+      }
+
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', text: response }]);
     }, 600);
   };
@@ -262,6 +259,7 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
     "¿Qué tareas tengo atrasadas?",
     "Mostrar tareas En Proceso",
     "Mostrar tareas Cumplidas",
+    "Ver Cultura Institucional y Mapa Mental EVEA",
     "Quiero ver mis tareas (Filtrar por mi nombre)",
     "Generar reporte de estado general"
   ];

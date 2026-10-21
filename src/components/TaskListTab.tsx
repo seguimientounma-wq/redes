@@ -7,6 +7,8 @@ import * as XLSX from 'xlsx';
 import Fuse from 'fuse.js';
 import { Calendar, CheckCircle2, Clock, ExternalLink, Search, FileText, FileDown, LayoutGrid, List, Columns, Mic, BarChartHorizontal, ChevronLeft, ChevronRight, Mail, MessageCircle, ArrowUpDown } from 'lucide-react';
 
+import { getStatusLabel, getDiffDays } from '@/lib/taskStatus';
+
 export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, setExternalViewMode }: { tasks: any[], onUpdateClick: (id: string) => void, externalViewMode?: 'cards' | 'table' | 'kanban' | 'calendar' | 'gantt', setExternalViewMode?: (v: 'cards' | 'table' | 'kanban' | 'calendar' | 'gantt') => void }) {
   const [localViewMode, setLocalViewMode] = useState<'cards' | 'table' | 'kanban' | 'calendar' | 'gantt'>('table');
   const viewMode = externalViewMode || localViewMode;
@@ -20,28 +22,6 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const itemsPerPage = 10;
-
-  const getStatusLabel = (task: any) => {
-    if (task.estado === 'Vencida') return 'Vencida';
-    if (task.estado === 'Cumplida') return 'Cumplida';
-    if (task.estado === 'Cancelada') return 'Cancelada';
-    if (task.estado === 'En proceso') return 'En proceso';
-    
-    if (task.fechaVencimiento && task.estado !== 'Cumplida' && task.estado !== 'Cancelada') {
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const parts = task.fechaVencimiento.split('/');
-      if (parts.length === 3) {
-        const [day, month, year] = parts;
-        const limitDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-        const diffTime = limitDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays < 0) return 'Vencida';
-        if (diffDays >= 0 && diffDays <= 2) return 'Próxima a Vencer';
-      }
-    }
-    return task.estado || 'Pendiente';
-  };
 
   const getStatusColor = (task: any) => {
     const label = getStatusLabel(task);

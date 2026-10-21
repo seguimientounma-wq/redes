@@ -5,6 +5,7 @@ import { createTaskAction, updateTaskAction, getDocentes, deleteTaskAction, getT
 import { toast } from 'sonner';
 import { Loader2, Mail, MessageCircle, ChevronDown, UploadCloud, Bot } from 'lucide-react';
 import CommentsSection from './CommentsSection';
+import { getStatusLabel } from '@/lib/taskStatus';
 
 export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: { tasks: any[], selectedTaskId: string | null, onSuccess: () => void }) {
   const [loading, setLoading] = useState(false);
@@ -669,7 +670,7 @@ Enlace de Evidencia: ${taskDetails.evidencia || ''}`;
               id="estado"
               name="estado"
               required
-              defaultValue={isUpdating ? taskDetails?.estado : 'Pendiente'}
+              defaultValue={isUpdating && taskDetails ? getStatusLabel(taskDetails) : 'Pendiente'}
               className={inputClasses}
             >
               <option value="Pendiente">Pendiente</option>
