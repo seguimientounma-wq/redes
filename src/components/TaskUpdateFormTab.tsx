@@ -1,20 +1,36 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createTaskAction, updateTaskAction, getDocentes, deleteTaskAction } from '@/actions/tasks';
+import { useState, useEffect, useRef } from 'react';
+import { createTaskAction, updateTaskAction, getDocentes, deleteTaskAction, getTiposTarea } from '@/actions/tasks';
 import { toast } from 'sonner';
-import { Loader2, Mail, MessageCircle, ChevronDown, UploadCloud } from 'lucide-react';
+import { Loader2, Mail, MessageCircle, ChevronDown, UploadCloud, Bot } from 'lucide-react';
 import CommentsSection from './CommentsSection';
 
 export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: { tasks: any[], selectedTaskId: string | null, onSuccess: () => void }) {
   const [loading, setLoading] = useState(false);
-  const [docentes, setDocentes] = useState<{id: string, nombre: string, email: string, telefono: string}[]>([]);
+  const [docentes, setDocentes] = useState<{
+    id: string, nombre: string, email: string, telefono: string,
+    dni?: string, cuil?: string, sede?: string, carrera?: string, materia?: string,
+    cargoDocente?: string, dedicacion?: string, modalidad?: string, titulo?: string,
+    institucion?: string, nivelAcademico?: string, designacionDesde?: string, 
+    designacionHasta?: string, estadoPersonal?: string
+  }[]>([]);
+  const [tiposTarea, setTiposTarea] = useState<string[]>([
+    'Administrativa', 'Académica', 'Atención y orientación', 'Gestión documental', 'Tecnológica', 'Otra'
+  ]);
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [descripcionText, setDescripcionText] = useState('');
   const [autoPriority, setAutoPriority] = useState<string | null>(null);
   const [isPersonasOpen, setIsPersonasOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // Prompts Ágiles (PPS / Metodología de Prompt)
+  const [ppsAccion, setPpsAccion] = useState('');
+  const [ppsObstaculo, setPpsObstaculo] = useState('');
+  const [ppsObjetivo, setPpsObjetivo] = useState('');
+  const [generatedPrompt, setGeneratedPrompt] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Obtener array de todos los seleccionados
   const activeDocentes = docentes.filter(d => selectedPersonas.includes(d.nombre));
@@ -22,6 +38,9 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
   
   useEffect(() => {
     getDocentes().then(setDocentes).catch(console.error);
+    getTiposTarea().then(res => {
+      if (res && res.length > 0) setTiposTarea(res);
+    }).catch(console.error);
   }, []);
   
   // If selectedTaskId exists, we are UPDATING. Otherwise, we are CREATING.
@@ -214,7 +233,7 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
     }
   }
 
-  const inputClasses = "block w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-blue-600 focus:border-blue-600 outline-none dark:text-white transition-colors";
+  const inputClasses = "block w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-blue-600 focus:border-blue-600 outline-none transition-colors";
   const labelClasses = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2";
 
   return (
@@ -238,12 +257,9 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
                 <label htmlFor="tipo" className={labelClasses}>Tipo de Tarea *</label>
                 <select id="tipo" name="tipo" required className={inputClasses}>
                   <option value="">Selecciona una opción...</option>
-                  <option value="Administrativa">Administrativa</option>
-                  <option value="Académica">Académica</option>
-                  <option value="Atención y orientación">Atención y orientación</option>
-                  <option value="Gestión documental">Gestión documental</option>
-                  <option value="Tecnológica">Tecnológica</option>
-                  <option value="Otra">Otra</option>
+                  {tiposTarea.map((t, idx) => (
+                    <option key={idx} value={t}>{t}</option>
+                  ))}
                 </select>
               </div>
 
@@ -294,7 +310,7 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="w-full px-3 py-2 mb-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm dark:text-white transition-colors"
+                      className="w-full px-3 py-2 mb-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
                     />
                     {docentes.length === 0 && <span className="text-sm text-gray-500">Cargando usuarios...</span>}
                     {docentes
@@ -313,7 +329,14 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
                             }
                           }}
                         />
-                        {d.nombre}
+                        <div className="flex flex-col">
+                          <span>{d.nombre}</span>
+                          {(d.cargoDocente || d.materia) && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {d.cargoDocente} {d.materia ? `- ${d.materia}` : ''}
+                            </span>
+                          )}
+                        </div>
                       </label>
                     ))}
                   </div>
@@ -332,6 +355,7 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
                           {activeDoc.email ? activeDoc.email : 'Sin email registrado'}
                           {' • '}
                           {activeDoc.telefono ? activeDoc.telefono : 'Sin teléfono'}
+                          {(activeDoc.sede || activeDoc.carrera) ? ` • Sede: ${activeDoc.sede || 'N/A'} - Carrera: ${activeDoc.carrera || 'N/A'}` : ''}
                         </p>
                       </div>
                       <div className="flex gap-2 shrink-0">
@@ -382,7 +406,7 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
                 required
                 rows={3}
                 placeholder="Ej. Creación del contenido y materiales para los talleres..."
-                className={`${inputClasses} resize-none bg-white mb-3`}
+                className={`${inputClasses} resize-none mb-3`}
                 value={descripcionText}
                 onChange={(e) => {
                   const text = e.target.value;
@@ -432,6 +456,98 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
                   </span>
                 </div>
               </div>
+
+              {/* SIMULADOR DE PROMPTS ÁGILES (ACORDEÓN) */}
+              <details className="mt-3 group bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-900/30">
+                <summary className="cursor-pointer font-semibold text-sm text-blue-700 dark:text-blue-400 p-3 flex justify-between items-center list-none select-none">
+                  <span className="flex items-center gap-2"><Bot className="w-5 h-5" /> Desplegar: Simulador de Carga Diaria Asistida por IA</span>
+                  <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="p-4 pt-0 border-t border-blue-200 dark:border-blue-800/50 mt-2">
+                  <p className="text-xs text-blue-600 dark:text-blue-300 mb-3 leading-relaxed">
+                    Escribe apuntes sueltos sobre el avance. El framework construirá una instrucción estructurada (Prompt) para que tu IA redacte un texto institucional impecable para pegar arriba en la Descripción.
+                  </p>
+                  <div className="space-y-2 mb-3">
+                    <input type="text" placeholder="1. Acción Principal (Ej: Preparación del aula virtual)" className="w-full text-sm p-2 rounded-md border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={ppsAccion} onChange={e => setPpsAccion(e.target.value)} />
+                    <input type="text" placeholder="2. Obstáculo / Faltante (Ej: Faltan los programas de las materias y el Plan de trabajo)" className="w-full text-sm p-2 rounded-md border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={ppsObstaculo} onChange={e => setPpsObstaculo(e.target.value)} />
+                    <input type="text" placeholder="3. Objetivo de Comunicación (Ej: Reclamar urgente a los docentes)" className="w-full text-sm p-2 rounded-md border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={ppsObjetivo} onChange={e => setPpsObjetivo(e.target.value)} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if(!ppsAccion && !ppsObstaculo && !ppsObjetivo) {
+                        toast.error('Escribe al menos un campo para generar el prompt.');
+                        return;
+                      }
+                      
+                      const currentTipo = taskDetails?.tipo || (document.getElementById('tipo') as HTMLSelectElement)?.value || 'No especificado';
+                      const currentPrioridad = taskDetails?.prioridad || autoPriority || (document.getElementById('prioridad') as HTMLSelectElement)?.value || 'No especificada';
+                      const currentInicio = taskDetails?.fechaInicio || (document.getElementById('fechaInicio') as HTMLInputElement)?.value || 'No especificada';
+                      const currentVencimiento = taskDetails?.fechaVencimiento || (document.getElementById('fechaVencimiento') as HTMLInputElement)?.value || 'No especificada';
+
+                      const prompt = `Actúa como un Tutor Socrático Experto en Gestión Universitaria de la UNMa.\n\nAquí tienes el contexto de la tarea oficial en la que estoy trabajando:\n- Tipo de Tarea: ${currentTipo}\n- Prioridad: ${currentPrioridad}\n- Fecha de Inicio: ${currentInicio}\n- Fecha de Vencimiento: ${currentVencimiento}\n\nY toma este esquema de mi avance actual en la tarea:\n\n- Acción Principal: ${ppsAccion || 'Avanzar con la tarea'}\n- Obstáculo/Faltante: ${ppsObstaculo || 'Ninguno específico'}\n- Objetivo Deseado: ${ppsObjetivo || 'Generar registro y comunicación'}\n\nTu objetivo final es ayudarme a estructurar mi avance y generar documentación para mi expediente.\n\nREGLAS DE INTERACCIÓN (MÉTODO SOCRÁTICO):\n1. NO redactes los textos finales todavía.\n2. Analiza mis apuntes y los datos de la tarea y hazme SOLO UNA pregunta a la vez para hacerme reflexionar, profundizar en detalles técnicos o pensar en estrategias para avanzar.\n3. Espera mi respuesta antes de hacer la siguiente pregunta.\n4. Dile al usuario: "Cuando sientas que la información es suficiente, responde con la palabra 'CONFORME'".\n5. Solo cuando yo diga 'CONFORME', redactarás el texto final estructurado EXACTAMENTE de la siguiente forma:\n\n   A) RESUMEN Y SOLUCIÓN (MENOR A 100 PALABRAS): Redacta un resumen directo, formal y en tercera persona de la situación y la solución a aplicar. DEBE tener menos de 100 palabras. Esto es lo que pegaré directamente en mi sistema.\n   B) Minuta de Avance Completa: Redacta una minuta extensa y detallada para el expediente formal.\n   C) Tres (3) estrategias clave de resolución basadas en nuestra charla.\n   D) Borrador de Email para notificar al personal involucrado.\n   E) Borrador de WhatsApp rápido para enviar al personal involucrado.`;
+                      
+                      setIsTyping(true);
+                      setGeneratedPrompt('');
+                      if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
+                      
+                      let i = 0;
+                      typingIntervalRef.current = setInterval(() => {
+                        // Avanzamos de a 3 letras a la vez para que sea súper rápido
+                        setGeneratedPrompt(prompt.substring(0, i));
+                        i += 3;
+                        if (i > prompt.length + 3) {
+                          clearInterval(typingIntervalRef.current!);
+                          setGeneratedPrompt(prompt);
+                          setIsTyping(false);
+                          navigator.clipboard.writeText(prompt);
+                          toast.success('🤖 Tutor Socrático generado y copiado. Pégalo en tu IA.');
+                        }
+                      }, 5);
+                    }}
+                    className="w-full text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-md transition-colors flex justify-center items-center gap-1 shadow-sm mb-4"
+                    disabled={isTyping}
+                  >
+                    {isTyping ? <><Loader2 className="w-4 h-4 animate-spin" /> Generando Metaprompt...</> : 'Generar Prompt Ágil'}
+                  </button>
+
+                  {(generatedPrompt || isTyping) && (
+                    <div className="mb-4 bg-gray-900 dark:bg-black rounded-lg p-3 font-mono text-sm text-white font-semibold shadow-inner border border-gray-800 relative overflow-hidden">
+                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700">
+                        <Bot className="w-4 h-4 text-emerald-500" />
+                        <span className="text-white font-sans font-medium text-[10px] uppercase tracking-widest">Generador de Inteligencia Artificial</span>
+                        {isTyping && <span className="ml-auto w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>}
+                      </div>
+                      <p className="whitespace-pre-wrap leading-relaxed">{generatedPrompt}{isTyping && <span className="inline-block w-2 h-4 bg-white ml-1 animate-pulse align-middle"></span>}</p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Motores Comerciales:</p>
+                    <div className="flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded border border-red-200 dark:border-red-800 animate-pulse shadow-sm">
+                      <span>⚠️ IMPORTANTE PRIVACIDAD:</span>
+                      <span className="font-medium">No incluir nombres, DNI, teléfonos ni emails. Usar solo "docentes" o "estudiantes".</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                    <a href="https://chatgpt.com" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">⚡ ChatGPT</a>
+                    <a href="https://gemini.google.com" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">✨ Gemini</a>
+                    <a href="https://claude.ai" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">🧠 Claude</a>
+                    <a href="https://copilot.microsoft.com/" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">💻 Copilot</a>
+                    <a href="https://chatgpt.com/?model=gpt-4o" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">🎓 Edu GPT</a>
+                    <a href="https://www.perplexity.ai/" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">🔍 Perplexity</a>
+                    <a href="https://chat.mistral.ai/" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">🌪️ Mistral</a>
+                  </div>
+
+                  <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Modelos de Código Abierto / Asiáticos:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                    <a href="https://chat.deepseek.com/" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">🐳 DeepSeek</a>
+                    <a href="https://chat.qwenlm.ai/" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">🐼 Qwen</a>
+                    <a href="https://huggingface.co/chat/models/meta-llama/Meta-Llama-3-70B-Instruct" target="_blank" rel="noopener noreferrer" className="text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 py-1.5 px-2 rounded border border-gray-200 dark:border-gray-700 text-center transition-colors shadow-sm font-medium">🦙 Llama 3</a>
+                    <a href="https://huggingface.co/chat/" target="_blank" rel="noopener noreferrer" className="text-xs bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-300 py-1.5 px-2 rounded border border-blue-300 dark:border-blue-600 text-center transition-colors shadow-sm font-bold">🔓 UNMa IA Libre</a>
+                  </div>
+                </div>
+              </details>
             </div>
 
             <div>
@@ -441,7 +557,7 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
                 id="entregable"
                 name="entregable"
                 required
-                placeholder="Ej. Actas firmadas en PDF"
+                placeholder="Ej. Recurso educativo finalizado y en funcionamiento"
                 className={inputClasses}
               />
             </div>
@@ -468,18 +584,29 @@ export default function TaskUpdateFormTab({ tasks, selectedTaskId, onSuccess }: 
                 <button
                   type="button"
                   onClick={() => {
+                    const names = taskDetails.docenteVinculado ? taskDetails.docenteVinculado.split(',').map((n: string) => n.trim()) : [];
+                    const linkedContacts = docentes.filter(d => names.includes(d.nombre));
+                    const contactosInfo = linkedContacts.map(c => `👤 ${c.nombre} - ✉️ ${c.email || 'N/A'} - 📱 ${c.telefono || 'N/A'}`).join('\n');
+                    
                     const template = `📋 **MINUTA DE REUNIÓN / AVANCE**
-• Tipo de Tarea * ${taskDetails.tipo || ''}
+• Tipo de Tarea: ${taskDetails.tipo || ''}
+• Responsable Principal: ${taskDetails.nombreAsignado} ${taskDetails.apellidoAsignado || ''}
 
-Prioridad * ${taskDetails.prioridad || ''} - Fecha de Inicio * ${taskDetails.fechaInicio || ''}
+👥 Personal Vinculado / Contactos:
+${contactosInfo || 'Sin contactos vinculados'}
 
-Fecha de Vencimiento * ${taskDetails.fechaVencimiento || ''}
-Descripción / Detalle de la Tarea * ${taskDetails.descripcion || ''}
-Resultado Esperado / Entregable * ${taskDetails.entregable || ''}
-Estado * ${taskDetails.estado || 'Pendiente'}
+Prioridad: ${taskDetails.prioridad || ''} - Fecha de Inicio: ${taskDetails.fechaInicio || ''}
+Fecha de Vencimiento: ${taskDetails.fechaVencimiento || ''}
 
+Descripción / Detalle de la Tarea: 
+${taskDetails.descripcion || ''}
+
+Resultado Esperado / Entregable: 
+${taskDetails.entregable || ''}
+
+Estado: ${taskDetails.estado || 'Pendiente'}
 Fecha de Cumplimiento: ${taskDetails.fechaCumplimiento || 'dd/mm/aaaa'}
-Enlace de Evidencia (Opcional): ${taskDetails.evidencia || ''}`;
+Enlace de Evidencia: ${taskDetails.evidencia || ''}`;
                     navigator.clipboard.writeText(template);
                     toast.success('¡Plantilla de Minuta copiada! Pégala en donde consideres que se debe enviar esta información (email, whatsapp o documento específico).');
                   }}

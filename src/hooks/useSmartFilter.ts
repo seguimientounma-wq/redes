@@ -1,34 +1,39 @@
 import { useState, useEffect, useMemo } from 'react';
 import Fuse from 'fuse.js';
 
+const getDiffDays = (fechaVencimiento: string) => {
+  if (!fechaVencimiento) return null;
+  const parts = fechaVencimiento.split('/');
+  if (parts.length !== 3) return null;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const limitDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+  const diffTime = limitDate.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
 const getStatusLabel = (task: any) => {
   if (task.estado) {
     if (task.estado.toLowerCase().includes('vencida')) return 'Vencida';
     if (task.estado.toLowerCase().includes('cumplida')) return 'Cumplida';
     if (task.estado.toLowerCase().includes('cancelada')) return 'Cancelada';
     if (task.estado.toLowerCase().includes('proceso')) return 'En proceso';
-    return task.estado; // Retorna el estado exacto del sheet si existe
   }
-  return 'Pendiente';
+  
+  const diff = getDiffDays(task.fechaVencimiento);
+  if (diff !== null && diff < 0) return 'Vencida';
+  
+  return task.estado || 'Pendiente';
 };
 
 export function useSmartFilter(initialTasks: any[]) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [statusFilter, setStatusFilter] = useState('Todas');
-  const [cargoFilter, setCargoFilter] = useState('Todos');
   const [filteredTasks, setFilteredTasks] = useState<any[]>([]);
 
-  // Escuchar eventos desde el Asistente CIRA
-  useEffect(() => {
-    const handleCiraFilter = (e: any) => {
-      setSearchTerm(e.detail);
-      setStatusFilter('Todas'); // Resetear otros filtros para que funcione el NLP libre
-      setCargoFilter('Todos');
-    };
-    window.addEventListener('cira-apply-filter', handleCiraFilter);
-    return () => window.removeEventListener('cira-apply-filter', handleCiraFilter);
-  }, []);
+  // El manejo de eventos 'cira-apply-filter' se realiza centralizadamente en DashboardTabs.tsx 
+  // para poder coordinar correctamente searchTerm, statusFilter y activeFilters sin pisarse.
 
   const toggleListening = () => {
     if (isListening) return; // Si ya escucha, no iniciar otro
@@ -78,6 +83,29 @@ export function useSmartFilter(initialTasks: any[]) {
         const today = new Date();
         today.setHours(0,0,0,0);
         
+        const parseToYMD = (str: string) => {
+          if (!str) return null;
+          const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+          if (match) return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+          const matchIso = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+          if (matchIso) return `${matchIso[1]}-${matchIso[2].padStart(2, '0')}-${matchIso[3].padStart(2, '0')}`;
+          return null;
+        };
+
+        const todayYMD = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
+        // Tags si fue creada o asignada hoy
+        const createdYMD = parseToYMD(task.fechaCreacion || task.fechaAsignacion || task.timestamp);
+        if (createdYMD === todayYMD) {
+          tags += " hoy creada creada_hoy nuevas asignada_hoy ";
+        }
+
+        // Tags si fue cumplida hoy
+        const cumplidaYMD = parseToYMD(task.fechaCumplimiento);
+        if (cumplidaYMD === todayYMD) {
+          tags += " hoy cumplida_hoy finalizada_hoy resuelta_hoy ";
+        }
+
         if (task.fechaVencimiento) {
           const parts = task.fechaVencimiento.split('/');
           if (parts.length === 3) {
@@ -87,7 +115,7 @@ export function useSmartFilter(initialTasks: any[]) {
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
             // Períodos relativos
-            if (diffDays === 0) tags += " hoy";
+            if (diffDays === 0) tags += " hoy vence_hoy vencimiento_hoy";
             else if (diffDays === 1) tags += " mañana manana";
             else if (diffDays > 1 && diffDays <= 7) tags += " esta semana";
             else if (diffDays > 7 && diffDays <= 14) tags += " proxima semana";
@@ -176,12 +204,11 @@ export function useSmartFilter(initialTasks: any[]) {
     // Filtros estáticos
     result = result.filter(task => {
       const matchesStatus = statusFilter === 'Todas' ? true : getStatusLabel(task) === statusFilter;
-      const matchesCargo = cargoFilter === 'Todos' ? true : task.cargo === cargoFilter;
-      return matchesStatus && matchesCargo;
+      return matchesStatus;
     });
 
     setFilteredTasks(result);
-  }, [initialTasks, searchTerm, statusFilter, cargoFilter]);
+  }, [initialTasks, searchTerm, statusFilter]);
 
   return {
     searchTerm,
@@ -190,8 +217,6 @@ export function useSmartFilter(initialTasks: any[]) {
     toggleListening,
     statusFilter,
     setStatusFilter,
-    cargoFilter,
-    setCargoFilter,
     filteredTasks
   };
 }

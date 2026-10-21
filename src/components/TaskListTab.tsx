@@ -5,13 +5,14 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import Fuse from 'fuse.js';
-import { Calendar, CheckCircle2, Clock, ExternalLink, Search, FileText, FileDown, LayoutGrid, List, Columns, Mic, BarChartHorizontal, ChevronLeft, ChevronRight, Mail, MessageCircle } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, ExternalLink, Search, FileText, FileDown, LayoutGrid, List, Columns, Mic, BarChartHorizontal, ChevronLeft, ChevronRight, Mail, MessageCircle, ArrowUpDown } from 'lucide-react';
 
 export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, setExternalViewMode }: { tasks: any[], onUpdateClick: (id: string) => void, externalViewMode?: 'cards' | 'table' | 'kanban' | 'calendar' | 'gantt', setExternalViewMode?: (v: 'cards' | 'table' | 'kanban' | 'calendar' | 'gantt') => void }) {
   const [localViewMode, setLocalViewMode] = useState<'cards' | 'table' | 'kanban' | 'calendar' | 'gantt'>('table');
   const viewMode = externalViewMode || localViewMode;
   const setViewMode = setExternalViewMode || setLocalViewMode;
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<'default'|'desc'|'asc'>('default');
   const [kanbanLimits, setKanbanLimits] = useState<Record<string, number>>({});
   
   // Calendario states
@@ -36,6 +37,7 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
         const diffTime = limitDate.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         if (diffDays < 0) return 'Vencida';
+        if (diffDays >= 0 && diffDays <= 2) return 'Próxima a Vencer';
       }
     }
     return task.estado || 'Pendiente';
@@ -46,6 +48,7 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
     if (label === 'Cumplida') return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900';
     if (label === 'Cancelada') return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700';
     if (label === 'Vencida') return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900';
+    if (label === 'Próxima a Vencer') return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-900';
     if (label === 'En proceso') return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900';
     
     return 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-900';
@@ -78,6 +81,18 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
 
   const baseFilteredTasks = tasks;
 
+  const parseDate = (d: string) => {
+    if (!d) return 0;
+    if (d.includes('/')) {
+      const parts = d.split('/');
+      if (parts.length === 3) return new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0])).getTime();
+    } else if (d.includes('-')) {
+      const parts = d.split('-');
+      if (parts.length === 3) return new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])).getTime();
+    }
+    return 0;
+  };
+
   const filteredTasks = baseFilteredTasks.filter(task => {
     let matchesCalendar = true;
     if (viewMode === 'calendar' && selectedDate && task.fechaVencimiento) {
@@ -90,9 +105,15 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
         matchesCalendar = false;
       }
     }
-
     return matchesCalendar;
-  })?.slice().reverse() || [];
+  }).sort((a, b) => {
+    if (sortOrder === 'default') {
+      return tasks.indexOf(b) - tasks.indexOf(a);
+    }
+    const timeA = parseDate(a.fechaVencimiento || a.fechaInicio);
+    const timeB = parseDate(b.fechaVencimiento || b.fechaInicio);
+    return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+  }) || [];
 
   // Paginación Tabla/Cards
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage) || 1;
@@ -197,15 +218,18 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(task)}`}>
           {getStatusLabel(task)}
         </span>
-        <div className="flex gap-2">
-          {(isWeekend(task.fechaInicio) || isWeekend(task.fechaCumplimiento)) && (
-            <span className="text-xs font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/40 dark:text-purple-300 px-2 py-1 rounded shadow-sm">
-              🕒 Extra
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex gap-2">
+            {(isWeekend(task.fechaInicio) || isWeekend(task.fechaCumplimiento)) && (
+              <span className="text-xs font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/40 dark:text-purple-300 px-2 py-1 rounded shadow-sm">
+                🕒 Extra
+              </span>
+            )}
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+              Prioridad {task.prioridad}
             </span>
-          )}
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-            Prioridad {task.prioridad}
-          </span>
+          </div>
+          {task.timestamp && <span className="text-[10px] text-gray-400" title="Fecha de Creación">Creada: {task.timestamp.split(' ')[0]}</span>}
         </div>
       </div>
       
@@ -273,6 +297,40 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
 
   return (
     <div className="space-y-6">
+      
+      {/* Ticker de Foco (Aislado y Full-Width para mobile y desktop) */}
+      <div className="w-full overflow-hidden bg-gray-900 dark:bg-black rounded-xl border border-gray-700 flex items-center h-10 relative">
+        <style>{`
+          @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+          }
+          .animate-ticker { animation: ticker 25s linear infinite; }
+        `}</style>
+        <div className="absolute left-0 bg-gray-900 dark:bg-black z-10 px-3 text-white font-bold text-xs h-full flex items-center border-r border-gray-700 shadow-[10px_0_15px_-3px_rgba(0,0,0,0.5)]">
+          🤍 FOCO HOY:
+        </div>
+        <div className="whitespace-nowrap animate-ticker text-sm text-green-400 font-mono tracking-widest pl-32">
+          {(() => {
+            try {
+              const activeTasks = baseFilteredTasks.filter(t => t.estado === 'En proceso' || !t.estado || t.estado === 'Pendiente');
+              const allText = activeTasks.map(t => `${t.descripcion || ''} ${t.tipo || ''} ${t.area || ''}`).join(' ').toLowerCase();
+              const words = allText.match(/\b[a-záéíóúüñ]{4,}\b/g) || [];
+              const stopword = require('stopword');
+              const customStops = ['para', 'como', 'sobre', 'entre', 'hasta', 'desde', 'esta', 'este', 'tiene', 'cuando', 'donde', 'quien', 'cual', 'hacer', 'tener', 'poder', 'todos', 'todas', 'unos', 'unas'];
+              const mlFilteredWords = stopword.removeStopwords(words, [...stopword.spa, ...customStops]);
+              
+              const freqs: Record<string, number> = {};
+              mlFilteredWords.forEach((w: string) => { freqs[w] = (freqs[w] || 0) + 1; });
+              const topWords = Object.entries(freqs).sort((a, b) => b[1] - a[1]).slice(0, 15).map(x => x[0].toUpperCase());
+              return topWords.length > 0 ? topWords.join(' • ') : "DÍA LIBRE - SIN PENDIENTES";
+            } catch (e) {
+              return "ACTUALIZAR EXPEDIENTES • REVISAR VENCIMIENTOS";
+            }
+          })()}
+        </div>
+      </div>
+
       <div className="flex flex-col xl:flex-row gap-3">
         <div className="flex w-full xl:flex-1 min-w-[250px] gap-2">
           {/* La barra de búsqueda y filtros ahora son globales en DashboardTabs */}
@@ -319,6 +377,11 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
             </button>
           </div>
 
+          <button onClick={() => setSortOrder(prev => prev === 'default' ? 'desc' : prev === 'desc' ? 'asc' : 'default')} className="flex items-center px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-xl transition-colors dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-900" title="Ordenar lista">
+            <ArrowUpDown className="h-5 w-5 sm:mr-2" />
+            <span className="hidden sm:inline text-sm font-medium">{sortOrder === 'default' ? 'Última Carga' : sortOrder === 'asc' ? 'Más Antiguas' : 'Más Nuevas'}</span>
+          </button>
+          
           <button onClick={exportPDF} className="flex items-center px-4 py-2 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded-xl transition-colors dark:bg-red-900/30 dark:text-red-400 dark:border-red-900" title="Exportar PDF">
             <FileText className="h-5 w-5 sm:mr-2" />
             <span className="hidden sm:inline text-sm font-medium">PDF</span>
@@ -604,7 +667,10 @@ export default function TaskListTab({ tasks, onUpdateClick, externalViewMode, se
               <tbody>
                 {paginatedTasks.map((task) => (
                 <tr key={task.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{task.id}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                    {task.id}
+                    {task.timestamp && <div className="text-[10px] text-gray-400 font-normal mt-1" title="Fecha de Creación">Creada: {task.timestamp.split(' ')[0]}</div>}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="font-semibold text-gray-900 dark:text-gray-100">{task.tipo}</div>

@@ -61,15 +61,21 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
     setTimeout(() => {
       let response: React.ReactNode = "Lo siento, no entendí esa pregunta.";
 
-      const createFilterButton = (filterTerm: string, label: string) => (
+      const createFilterButton = (
+        filterTerm: string, 
+        label: string, 
+        type: 'search' | 'status' | 'responsable' | 'vinculado' | 'persona' = 'search'
+      ) => (
         <button 
           onClick={() => {
-            window.dispatchEvent(new CustomEvent('cira-apply-filter', { detail: filterTerm }));
+            window.dispatchEvent(new CustomEvent('cira-apply-filter', { 
+              detail: { type, value: filterTerm } 
+            }));
             setIsOpen(false);
           }}
           className="mt-3 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/50 dark:hover:bg-blue-800/50 dark:text-blue-300 py-1.5 px-3 rounded-lg transition-colors font-medium flex items-center gap-1 w-full justify-center"
         >
-          Ver en Mis Tareas
+          {label}
         </button>
       );
 
@@ -155,7 +161,7 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
                 ))}
               </ul>
               {overdue.length > 5 && <p className="text-xs text-gray-500 mt-2 font-medium">Y {overdue.length - 5} más (Revisa la vista de Tarjetas).</p>}
-              {createFilterButton("vencida", "Ver tareas ATRASADAS")}
+              {createFilterButton("Vencida", "Ver tareas ATRASADAS", "status")}
             </div>
           );
         }
@@ -165,7 +171,7 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
         response = (
           <div>
             <p>Hay {done.length} tareas marcadas como Cumplidas.</p>
-            {createFilterButton("cumplida", "Ver tareas CUMPLIDAS")}
+            {createFilterButton("Cumplida", "Ver tareas CUMPLIDAS", "status")}
           </div>
         );
       }
@@ -174,33 +180,73 @@ export default function VirtualAssistant({ tasks, userName }: { tasks: any[], us
         response = (
           <div>
             <p>Hay {wip.length} tareas actualmente En Proceso.</p>
-            {createFilterButton("en proceso", "Ver tareas EN PROCESO")}
+            {createFilterButton("En proceso", "Ver tareas EN PROCESO", "status")}
           </div>
         );
       }
       else if (question === "Quiero ver mis tareas (Filtrar por mi nombre)") {
-        response = (
-          <div>
-            <p>Aún no has iniciado sesión. Para ver solo tus tareas, haz clic en el botón de abajo y escribe tu nombre en la barra de búsqueda principal.</p>
-            {createFilterButton("", "Ir al Buscador")}
-          </div>
-        );
+        if (userName && userName !== 'Usuario') {
+          const normalize = (s: string) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+          const firstName = normalize(userName.split(' ')[0]);
+          
+          const tareasResponsable = tasks.filter(t => normalize(t.nombreAsignado).includes(firstName));
+          const tareasVinculado = tasks.filter(t => normalize(t.docenteVinculado).includes(firstName));
+          
+          response = (
+            <div className="space-y-3">
+              <p>¡Hola <strong>{userName.split(' ')[0]}</strong>! Encontré tus expedientes divididos por rol:</p>
+              
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800">
+                <p className="font-semibold text-blue-800 dark:text-blue-300 mb-2">📌 Como Responsable Directo ({tareasResponsable.length})</p>
+                {createFilterButton(userName.split(' ')[0], "Filtrar como Responsable", "responsable")}
+              </div>
+              
+              <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl border border-purple-100 dark:border-purple-800">
+                <p className="font-semibold text-purple-800 dark:text-purple-300 mb-2">🤝 Como Personal Vinculado ({tareasVinculado.length})</p>
+                {createFilterButton(userName.split(' ')[0], "Filtrar como Vinculado", "vinculado")}
+              </div>
+            </div>
+          );
+        } else {
+          response = (
+            <div>
+              <p>Aún no tengo tu nombre registrado en esta sesión. Para ver solo tus tareas, haz clic en el botón de abajo y escribe tu nombre en la barra de búsqueda principal.</p>
+              {createFilterButton("", "Ir al Buscador")}
+            </div>
+          );
+        }
       }
       else if (question === "Generar reporte de estado general") {
-        const total = tasks.length;
-        const cumplidas = tasks.filter(t => getStatusLabel(t) === 'Cumplida').length;
-        const vencidas = tasks.filter(t => getStatusLabel(t) === 'Vencida').length;
-        const proceso = tasks.filter(t => getStatusLabel(t) === 'En proceso').length;
-        const pendientes = tasks.filter(t => getStatusLabel(t) === 'Pendiente').length;
+        let reportTasks = tasks;
+        let prefix = "Reporte General (Toda el Área)";
+        
+        if (userName && userName !== 'Usuario') {
+          const normalize = (s: string) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+          const firstName = normalize(userName.split(' ')[0]);
+          reportTasks = tasks.filter(t => 
+            normalize(t.nombreAsignado).includes(firstName)
+          );
+          prefix = `Mi Reporte Personal (${userName.split(' ')[0]})`;
+        }
+
+        const total = reportTasks.length;
+        const cumplidas = reportTasks.filter(t => getStatusLabel(t) === 'Cumplida').length;
+        const vencidas = reportTasks.filter(t => getStatusLabel(t) === 'Vencida').length;
+        const proceso = reportTasks.filter(t => getStatusLabel(t) === 'En proceso').length;
+        const pendientes = reportTasks.filter(t => getStatusLabel(t) === 'Pendiente').length;
 
         response = (
           <div className="space-y-2 text-sm">
-            <p className="font-semibold mb-2">📊 Reporte General Rápido:</p>
-            <div className="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-1"><span>Total Registradas:</span> <span className="font-bold">{total}</span></div>
+            <p className="font-semibold mb-2">📊 {prefix}:</p>
+            <div className="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-1"><span>Total Asignadas:</span> <span className="font-bold">{total}</span></div>
             <div className="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-1 text-green-600 dark:text-green-400"><span>✅ Cumplidas:</span> <span className="font-bold">{cumplidas}</span></div>
             <div className="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-1 text-yellow-600 dark:text-yellow-400"><span>⏳ En Proceso:</span> <span className="font-bold">{proceso}</span></div>
             <div className="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-1 text-blue-600 dark:text-blue-400"><span>📝 Pendientes:</span> <span className="font-bold">{pendientes}</span></div>
             <div className="flex justify-between text-red-600 dark:text-red-400"><span>🚨 Vencidas:</span> <span className="font-bold">{vencidas}</span></div>
+            
+            {userName && userName !== 'Usuario' && (
+              createFilterButton(userName.split(' ')[0], "Ver estas tareas", "persona")
+            )}
           </div>
         );
       }

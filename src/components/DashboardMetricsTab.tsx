@@ -11,48 +11,95 @@ export default function DashboardMetricsTab({
   activeFilters,
   toggleFilter,
   clearFilters,
-  onUpdateClick 
+  onUpdateClick,
+  theme
 }: { 
   tasks: any[], 
   filteredTasks: any[],
   activeFilters: Record<string, string>,
   toggleFilter: (k: string, v: string) => void,
   clearFilters: () => void,
-  onUpdateClick?: (id: string) => void 
+  onUpdateClick?: (id: string) => void,
+  theme?: string
 }) {
   const [selectedDayTasks, setSelectedDayTasks] = useState<any[]>([]);
   const hasFilters = Object.keys(activeFilters).length > 0;
+  
+  const isDark = theme === 'dark';
+  const textColor = isDark ? '#e5e7eb' : '#374151';
+  const tooltipStyle = { 
+    borderRadius: '8px', 
+    border: '1px solid ' + (isDark ? '#374151' : '#e5e7eb'), 
+    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', 
+    backgroundColor: isDark ? '#1f2937' : '#ffffff',
+    color: isDark ? '#f3f4f6' : '#111827',
+    fontSize: '12px' 
+  };
+  
+  const renderLegendText = (value: string) => {
+    return <span style={{ color: textColor }}>{value}</span>;
+  };
+
+  // Helper para estado dinámico
+  const getDiffDays = (fechaVencimiento: string) => {
+    if (!fechaVencimiento) return null;
+    const parts = fechaVencimiento.split('/');
+    if (parts.length !== 3) return null;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const [d, m, y] = parts;
+    const limitDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    const diffTime = limitDate.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const getStatusLabel = (task: any) => {
+    if (task.estado === 'Vencida') return 'Vencida';
+    if (task.estado === 'Cumplida') return 'Cumplida';
+    if (task.estado === 'Cancelada') return 'Cancelada';
+    if (task.estado === 'En proceso') return 'En proceso';
+    
+    const diff = getDiffDays(task.fechaVencimiento);
+    if (diff !== null) {
+      if (diff < 0) return 'Vencida';
+      if (diff >= 0 && diff <= 2) return 'Próxima a Vencer';
+    }
+    return task.estado || 'Pendiente';
+  };
 
   // 1. Métricas Generales
   const total = filteredTasks.length;
-  const cumplidas = filteredTasks.filter(t => t.estado === 'Cumplida').length;
-  const enProceso = filteredTasks.filter(t => t.estado === 'En proceso').length;
-  const canceladas = filteredTasks.filter(t => t.estado === 'Cancelada').length;
-  const vencidas = filteredTasks.filter(t => t.estado === 'Vencida').length;
-  const pendientes = filteredTasks.filter(t => t.estado === 'Pendiente' || !t.estado).length;
+  const cumplidas = filteredTasks.filter(t => getStatusLabel(t) === 'Cumplida').length;
+  const enProceso = filteredTasks.filter(t => getStatusLabel(t) === 'En proceso').length;
+  const canceladas = filteredTasks.filter(t => getStatusLabel(t) === 'Cancelada').length;
+  const vencidas = filteredTasks.filter(t => getStatusLabel(t) === 'Vencida').length;
+  const pendientes = filteredTasks.filter(t => getStatusLabel(t) === 'Pendiente').length;
+  const proximas = filteredTasks.filter(t => getStatusLabel(t) === 'Próxima a Vencer').length;
 
   const dataPie = [
     { name: 'Cumplidas', rawName: 'Cumplida', value: cumplidas, color: '#22c55e' },
     { name: 'En Proceso', rawName: 'En proceso', value: enProceso, color: '#eab308' },
     { name: 'Pendientes', rawName: 'Pendiente', value: pendientes, color: '#3b82f6' },
+    { name: 'Próximas a Vencer', rawName: 'Próxima a Vencer', value: proximas, color: '#f97316' },
     { name: 'Vencidas', rawName: 'Vencida', value: vencidas, color: '#ef4444' },
     { name: 'Canceladas', rawName: 'Cancelada', value: canceladas, color: '#9ca3af' },
   ].filter(d => d.value > 0);
 
-  // 2. Agrupar por áreas
-  const areasMap = new Map<string, { name: string, Cumplidas: number, Pendientes: number, EnProceso: number, Vencidas: number }>();
+  // 2. Agrupar por Tipo de Tarea
+  const tiposMap = new Map<string, { name: string, Cumplidas: number, Pendientes: number, EnProceso: number, Vencidas: number }>();
   filteredTasks.forEach(t => {
-    const area = t.area || 'Sin Área';
-    if (!areasMap.has(area)) {
-      areasMap.set(area, { name: area, Cumplidas: 0, Pendientes: 0, EnProceso: 0, Vencidas: 0 });
+    const tipo = t.tipo || 'Sin Tipo';
+    const status = getStatusLabel(t);
+    if (!tiposMap.has(tipo)) {
+      tiposMap.set(tipo, { name: tipo, Cumplidas: 0, Pendientes: 0, EnProceso: 0, Vencidas: 0 });
     }
-    const data = areasMap.get(area)!;
-    if (t.estado === 'Cumplida') data.Cumplidas += 1;
-    else if (t.estado === 'En proceso') data.EnProceso += 1;
-    else if (t.estado === 'Vencida') data.Vencidas += 1;
-    else if (t.estado === 'Pendiente' || !t.estado) data.Pendientes += 1;
+    const data = tiposMap.get(tipo)!;
+    if (status === 'Cumplida') data.Cumplidas += 1;
+    else if (status === 'En proceso') data.EnProceso += 1;
+    else if (status === 'Vencida') data.Vencidas += 1;
+    else data.Pendientes += 1;
   });
-  const dataBar = Array.from(areasMap.values());
+  const dataBar = Array.from(tiposMap.values());
 
   // 3. Prioridades
   const prioridadMap: Record<string, number> = { Alta: 0, Media: 0, Baja: 0 };
@@ -75,10 +122,11 @@ export default function DashboardMetricsTab({
       const data = timelineMap.get(day)!;
       data.Creadas += 1;
       data.tareas.push(t);
-      if (t.estado === 'Cumplida') data.Cumplidas += 1;
-      else if (t.estado === 'En proceso') data.EnProceso += 1;
-      else if (t.estado === 'Vencida') data.Vencidas += 1;
-      else if (t.estado === 'Cancelada') data.Canceladas += 1;
+      const status = getStatusLabel(t);
+      if (status === 'Cumplida') data.Cumplidas += 1;
+      else if (status === 'En proceso') data.EnProceso += 1;
+      else if (status === 'Vencida') data.Vencidas += 1;
+      else if (status === 'Cancelada') data.Canceladas += 1;
       else data.Pendientes += 1;
     }
   });
@@ -147,12 +195,14 @@ export default function DashboardMetricsTab({
   const bottlenecksByType = new Map<string, { total: number, trabadas: number, tareasIds: string[] }>();
 
   filteredTasks.forEach(t => {
+    const status = getStatusLabel(t);
     // Un cuello de botella es una acumulación de tareas Vencidas o muchas tareas En Proceso en simultáneo.
-    const isTrabada = t.estado === 'Vencida' || t.estado === 'En proceso'; 
+    const isTrabada = status === 'Vencida' || status === 'En proceso'; 
     
-    if (t.docenteVinculado) {
-      if (!bottlenecksByPerson.has(t.docenteVinculado)) bottlenecksByPerson.set(t.docenteVinculado, { total: 0, trabadas: 0, tareasIds: [] });
-      const b = bottlenecksByPerson.get(t.docenteVinculado)!;
+    const assignedName = t.nombreAsignado ? `${t.nombreAsignado} ${t.apellidoAsignado || ''}`.trim() : '';
+    if (assignedName) {
+      if (!bottlenecksByPerson.has(assignedName)) bottlenecksByPerson.set(assignedName, { total: 0, trabadas: 0, tareasIds: [] });
+      const b = bottlenecksByPerson.get(assignedName)!;
       b.total += 1;
       if (isTrabada) { b.trabadas += 1; b.tareasIds.push(t.id); }
     }
@@ -198,8 +248,9 @@ export default function DashboardMetricsTab({
   let tareasMesActual = 0;
 
   filteredTasks.forEach(t => {
+    const status = getStatusLabel(t);
     // KPI: Resolución a tiempo y Calidad
-    if (t.estado === 'Cumplida') {
+    if (status === 'Cumplida') {
       totalCumplidas++;
       if (t.fechaCumplimiento && t.fechaVencimiento) {
         totalCumplidasValidas++;
@@ -274,7 +325,7 @@ export default function DashboardMetricsTab({
             <div className="flex flex-wrap gap-2 flex-1">
               {Object.entries(activeFilters).map(([key, val]) => (
                 <span key={key} className="inline-flex items-center gap-1 bg-white dark:bg-gray-800 px-2 py-1 rounded-full text-xs font-semibold text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-700 shadow-sm">
-                  {key === 'estado' ? 'Estado' : key === 'prioridad' ? 'Prioridad' : key === 'keyword' ? 'Palabra Clave' : 'Área'}: {val}
+                  {key === 'estado' ? 'Estado' : key === 'prioridad' ? 'Prioridad' : key === 'keyword' ? 'Palabra Clave' : key === 'tipo' ? 'Tipo de Tarea' : 'Filtro'}: {val}
                   <button onClick={() => toggleFilter(key, val)} className="hover:text-red-500 rounded-full p-0.5 transition-colors">
                     <X className="w-3 h-3" />
                   </button>
@@ -292,7 +343,7 @@ export default function DashboardMetricsTab({
       </AnimatePresence>
 
       {/* TARJETAS SUPERIORES */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <motion.div variants={itemVariants} whileHover={{ scale: 1.05 }} className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800 text-center shadow-sm cursor-pointer transition-colors">
           <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Tareas</p>
           <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{total}</p>
@@ -313,6 +364,11 @@ export default function DashboardMetricsTab({
           <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{pendientes}</p>
         </motion.div>
         
+        <motion.div variants={itemVariants} onClick={() => toggleFilter('estado', 'Próxima a Vencer')} whileHover={{ scale: 1.05 }} className={`p-4 rounded-xl border text-center shadow-sm cursor-pointer transition-colors ${activeFilters.estado === 'Próxima a Vencer' ? 'bg-orange-100 border-orange-300 dark:bg-orange-900/40' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800'}`}>
+          <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Próximas</p>
+          <p className="text-3xl font-bold text-orange-900 dark:text-orange-100">{proximas}</p>
+        </motion.div>
+
         <motion.div variants={itemVariants} onClick={() => toggleFilter('estado', 'Vencida')} whileHover={{ scale: 1.05 }} className={`p-4 rounded-xl border text-center shadow-sm cursor-pointer transition-colors ${activeFilters.estado === 'Vencida' ? 'bg-red-100 border-red-300 dark:bg-red-900/40' : 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800'}`}>
           <p className="text-sm font-medium text-red-600 dark:text-red-400">Vencidas</p>
           <p className="text-3xl font-bold text-red-900 dark:text-red-100">{vencidas}</p>
@@ -415,8 +471,8 @@ export default function DashboardMetricsTab({
                   <Cell key={`cell-${index}`} fill={entry.color} opacity={activeFilters.estado && activeFilters.estado !== entry.rawName ? 0.3 : 1} />
                 ))}
               </Pie>
-              <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              <Legend onClick={(data: any) => {
+              <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: textColor }} />
+              <Legend formatter={renderLegendText} onClick={(data: any) => {
                 const found = dataPie.find(d => d.name === data.value);
                 if (found) toggleFilter('estado', found.rawName);
               }} />
@@ -437,11 +493,12 @@ export default function DashboardMetricsTab({
                 className="cursor-pointer"
               >
                 <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#888' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#888' }} allowDecimals={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: textColor }} />
+                <YAxis tick={{ fontSize: 10, fill: textColor }} allowDecimals={false} />
                 <RechartsTooltip 
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} 
-                  cursor={{fill: 'rgba(59, 130, 246, 0.1)'}} 
+                  contentStyle={tooltipStyle} 
+                  itemStyle={{ color: textColor }}
+                  cursor={{fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(59, 130, 246, 0.1)'}} 
                 />
                 <Bar 
                   dataKey="Cumplidas" stackId="a" fill="#22c55e" maxBarSize={40}
@@ -505,23 +562,23 @@ export default function DashboardMetricsTab({
       {/* SEGUNDA FILA DE GRÁFICOS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* RENDIMIENTO POR ÁREA (BARRAS) */}
+        {/* RENDIMIENTO POR TIPO DE TAREA (BARRAS) */}
         <motion.div variants={itemVariants} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4 rounded-xl shadow-sm h-80 lg:col-span-2 hover:shadow-md transition-shadow">
-          <h3 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 cursor-help" title="Haz clic en una columna para filtrar por Área">Rendimiento por Área (Interactivo)</h3>
+          <h3 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 cursor-help" title="Haz clic en una columna para filtrar por Tipo de Tarea">Rendimiento por Tipo de Tarea (Interactivo)</h3>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={dataBar}
               margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
               onClick={(state) => {
-                if (state && state.activeLabel) toggleFilter('area', String(state.activeLabel));
+                if (state && state.activeLabel) toggleFilter('tipo', String(state.activeLabel));
               }}
               className="cursor-pointer"
             >
               <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#888' }} />
-              <YAxis tick={{ fontSize: 12, fill: '#888' }} />
-              <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
-              <Legend />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: textColor }} />
+              <YAxis tick={{ fontSize: 12, fill: textColor }} />
+              <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: textColor }} cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }} />
+              <Legend formatter={renderLegendText} />
               <Bar dataKey="Cumplidas" stackId="a" fill="#22c55e" radius={[0, 0, 4, 4]} opacity={activeFilters.estado && activeFilters.estado !== 'Cumplida' ? 0.3 : 1} />
               <Bar dataKey="EnProceso" stackId="a" fill="#eab308" opacity={activeFilters.estado && activeFilters.estado !== 'En proceso' ? 0.3 : 1} />
               <Bar dataKey="Pendientes" stackId="a" fill="#3b82f6" opacity={activeFilters.estado && activeFilters.estado !== 'Pendiente' ? 0.3 : 1} />
@@ -549,8 +606,8 @@ export default function DashboardMetricsTab({
                   >
                     {dataPrioridad.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} opacity={activeFilters.prioridad && activeFilters.prioridad !== entry.name ? 0.3 : 1} />)}
                   </Pie>
-                  <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Legend onClick={(data: any) => toggleFilter('prioridad', data.value || '')} />
+                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: textColor }} />
+                  <Legend formatter={renderLegendText} onClick={(data: any) => toggleFilter('prioridad', data.value || '')} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -653,7 +710,7 @@ export default function DashboardMetricsTab({
         <motion.div variants={itemVariants} className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xl">⚠️</span>
-            <h3 className="text-lg font-bold text-orange-800 dark:text-orange-300">Procesos Estancados (Por Área/Tipo)</h3>
+            <h3 className="text-lg font-bold text-orange-800 dark:text-orange-300">Procesos Estancados (Por Tipo)</h3>
           </div>
           <p className="text-sm text-orange-600 dark:text-orange-400 mb-4">
             Tipos de tareas con mayor volumen de bloqueos o retrasos actuales.
@@ -666,7 +723,7 @@ export default function DashboardMetricsTab({
                   <p className="text-xs text-gray-500">{b.trabadas} tareas críticas ({b.percentage}% del total)</p>
                 </div>
                 <button 
-                  onClick={() => toggleFilter('area', b.name)}
+                  onClick={() => toggleFilter('tipo', b.name)}
                   className="px-3 py-1.5 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/50 dark:hover:bg-orange-800 text-orange-700 dark:text-orange-300 text-xs font-bold rounded-md transition-colors"
                 >
                   Filtrar

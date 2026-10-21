@@ -34,6 +34,7 @@ export async function getTasks() {
       descripcion: row[8] || '',
       entregable: row[9] || '',
       fechaAsignacion: row[10] || '',
+      fechaCreacion: row[10] || (row[0] ? row[0].split(/[ ,]+/)[0] : '') || '',
       fechaInicio: row[11] || '',
       fechaVencimiento: row[12] || '',
       prioridad: row[13] || '',
@@ -285,7 +286,7 @@ export async function getDocentes() {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'personal docente!A:G',
+      range: 'personal docente!A:Q',
     });
 
     const rows = response.data.values;
@@ -304,7 +305,21 @@ export async function getDocentes() {
         id: row[0] || '',
         nombre: nombreCompleto,
         email,
-        telefono
+        telefono,
+        dni: row[1] ? String(row[1]).trim() : '',
+        cuil: row[2] ? String(row[2]).trim() : '',
+        sede: row[5] ? String(row[5]).trim() : '',
+        carrera: row[6] ? String(row[6]).trim() : '',
+        materia: row[7] ? String(row[7]).trim() : '',
+        cargoDocente: row[8] ? String(row[8]).trim() : '',
+        dedicacion: row[9] ? String(row[9]).trim() : '',
+        modalidad: row[10] ? String(row[10]).trim() : '',
+        titulo: row[11] ? String(row[11]).trim() : '',
+        institucion: row[12] ? String(row[12]).trim() : '',
+        nivelAcademico: row[13] ? String(row[13]).trim() : '',
+        designacionDesde: row[14] ? String(row[14]).trim() : '',
+        designacionHasta: row[15] ? String(row[15]).trim() : '',
+        estadoPersonal: row[16] ? String(row[16]).trim() : ''
       };
     }).filter(docente => docente.nombre !== '').sort((a, b) => a.nombre.localeCompare(b.nombre));
   } catch (error) {
@@ -361,4 +376,28 @@ export async function addCommentAction(taskId: string, comentario: string) {
   });
 
   revalidatePath('/dashboard');
+}
+
+export async function getTiposTarea() {
+  const session = await getSession();
+  if (!session) return [];
+
+  const sheets = await getGoogleSheetsClient();
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Configuracion!A:Z',
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Columna E corresponde al índice 4 (A=0, B=1, C=2, D=3, E=4)
+    // Omitimos la primera fila asumiendo que es la cabecera
+    const tipos = rows.slice(1).map(row => row[4]).filter(val => val && typeof val === 'string' && val.trim() !== '');
+    return Array.from(new Set(tipos));
+  } catch (error) {
+    console.error('Error fetching tipos tarea', error);
+    return [];
+  }
 }
